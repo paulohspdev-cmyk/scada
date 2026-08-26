@@ -1,0 +1,16 @@
+[Unit]
+Description=RC Geradores SCADA Web
+After=network.target
+
+[Service]
+Type=simple
+User=rcscada
+Group=rcscada
+WorkingDirectory=/opt/rc-scada
+EnvironmentFile=/etc/rc-scada.env
+ExecStart=/opt/rc-scada/.venv/bin/gunicorn -w 2 -b 127.0.0.1:8088 app.web:app
+Restart=always
+RestartSec=3
+
+[Install]
+WantedBy=multi-user.target
