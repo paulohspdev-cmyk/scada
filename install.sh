@@ -16,7 +16,7 @@ echo "== RC Geradores SCADA =="
 echo "Instalando dependências..."
 apt-get update
 DEBIAN_FRONTEND=noninteractive apt-get install -y \
-  git curl unzip nginx python3 python3-venv python3-pip ca-certificates jq openssl
+  git curl unzip nginx python3 python3-venv python3-pip ca-certificates jq openssl sudo
 
 if ! command -v dotnet >/dev/null 2>&1 || ! dotnet --list-runtimes 2>/dev/null | grep -q 'Microsoft.AspNetCore.App 8'; then
   echo "Instalando ASP.NET Core Runtime 8..."
@@ -40,6 +40,7 @@ else
   rm -rf "$BASE"
   git clone "$REPO" "$BASE"
 fi
+chmod +x "$BASE/install.sh" "$BASE/scripts/status.sh"
 
 mkdir -p "$BASE/vendor"
 echo "Baixando GenMon oficial..."
