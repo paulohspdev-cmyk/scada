@@ -1,0 +1,18 @@
+[Unit]
+Description=RC Geradores Reverse TCP Modbus Gateway
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=rcscada
+Group=rcscada
+WorkingDirectory=/opt/rc-scada
+EnvironmentFile=/etc/rc-scada.env
+ExecStart=/opt/rc-scada/.venv/bin/python -m app.gateway
+Restart=always
+RestartSec=3
+LimitNOFILE=8192
+
+[Install]
+WantedBy=multi-user.target
