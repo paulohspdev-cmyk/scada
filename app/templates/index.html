@@ -1,0 +1,66 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>RC Geradores SCADA</title>
+<link rel="stylesheet" href="/static/app.css">
+</head>
+<body>
+<aside>
+  <div class="brand"><span>RC</span> GERADORES</div>
+  <nav>
+    <button class="nav active" data-view="dashboard">Dashboard</button>
+    <button class="nav" data-view="generators">Geradores</button>
+    <button class="nav" data-view="events">Eventos</button>
+  </nav>
+  <div class="engine">Rapid SCADA + GenMon<br><small>motor industrial</small></div>
+</aside>
+<main>
+  <header><div><h1 id="title">Dashboard</h1><p>Monitoramento central de grupos geradores</p></div><button id="addBtn" class="primary">+ Adicionar gerador</button></header>
+
+  <section id="dashboard" class="view">
+    <div class="kpis">
+      <div class="kpi"><span>Total</span><strong id="kTotal">0</strong></div>
+      <div class="kpi ok"><span>Online</span><strong id="kOnline">0</strong></div>
+      <div class="kpi"><span>Operando</span><strong id="kOperating">0</strong></div>
+      <div class="kpi warn"><span>Alarme/Falha</span><strong id="kAlarm">0</strong></div>
+      <div class="kpi off"><span>Offline</span><strong id="kOffline">0</strong></div>
+    </div>
+    <div class="panel"><div class="panel-title">Geradores</div><div id="cards" class="cards"></div></div>
+  </section>
+
+  <section id="generators" class="view hidden">
+    <div class="panel"><div class="panel-title">Cadastro e comunicação</div>
+      <table><thead><tr><th>Código</th><th>Cliente / Local</th><th>Controladora</th><th>Porta</th><th>Status</th><th></th></tr></thead>
+      <tbody id="generatorRows"></tbody></table>
+    </div>
+  </section>
+
+  <section id="events" class="view hidden">
+    <div class="panel"><div class="panel-title">Eventos recentes</div><div id="eventsList"></div></div>
+  </section>
+
+  <div id="drawer" class="drawer hidden">
+    <button class="close" onclick="closeDrawer()">×</button>
+    <div id="drawerContent"></div>
+  </div>
+</main>
+
+<div id="modal" class="modal hidden"><form id="generatorForm" class="modal-card">
+  <h2>Novo gerador</h2>
+  <div class="grid2">
+    <label>Código<input name="code" placeholder="GER-001" required></label>
+    <label>Nome<input name="name" placeholder="Gerador Principal" required></label>
+    <label>Cliente<input name="customer" placeholder="Hospital São Lucas"></label>
+    <label>Local<input name="site" placeholder="Casa de máquinas"></label>
+    <label>Controladora<select name="controller_type"><option>COMAP</option><option>DSE</option></select></label>
+    <label>Modelo<input name="controller_model" placeholder="InteliGen / DSE 7320 MKII"></label>
+    <label>Transporte<select name="transport"><option value="rtu_over_tcp">Modbus RTU sobre TCP</option><option value="modbus_tcp">Modbus TCP</option></select></label>
+    <label>Modbus ID<input name="modbus_unit" type="number" min="1" max="247" value="1"></label>
+    <label>Porta TCP<input name="listen_port" type="number" placeholder="Automática: 15001+"></label>
+  </div>
+  <div class="actions"><button type="button" onclick="closeModal()">Cancelar</button><button class="primary" type="submit">Cadastrar</button></div>
+  <div id="formError" class="error"></div>
+</form></div>
+<script src="/static/app.js"></script>
+</body></html>
