@@ -26,11 +26,14 @@
       <div class="kpi warn"><span>Alarme/Falha</span><strong id="kAlarm">0</strong></div>
       <div class="kpi off"><span>Offline</span><strong id="kOffline">0</strong></div>
     </div>
-    <div class="panel"><div class="panel-title">Geradores</div><div id="cards" class="cards"></div></div>
   </section>
 
   <section id="generators" class="view hidden">
-    <div class="panel"><div class="panel-title">Cadastro e comunicação</div>
+    <div class="panel generator-cards-panel">
+      <div class="panel-title">Geradores</div>
+      <div id="cards" class="cards"></div>
+    </div>
+    <div class="panel generator-table-panel"><div class="panel-title">Cadastro e comunicação</div>
       <table><thead><tr><th>Código</th><th>Cliente / Local</th><th>Controladora</th><th>Porta / Unit</th><th>Status</th><th></th></tr></thead>
       <tbody id="generatorRows"></tbody></table>
     </div>
