@@ -10,10 +10,11 @@ modem TCP Client
   -> painel RC
 ```
 
-Antes da limpeza foi criado o branch de segurança:
+Branches de segurança criados durante a limpeza:
 
 ```text
 checkpoint/pre-cleanup-rapid-20260827
+checkpoint/pre-profile-cleanup-20260827
 ```
 
 ## Núcleo definitivo
@@ -50,14 +51,13 @@ README.md
 docs/
 ```
 
-## Segunda limpeza concluída
+## Limpezas concluídas
 
-Os componentes abaixo foram removidos do `main` porque pertenciam ao polling Python antigo ou eram scripts usados somente durante a migração para o Rapid SCADA:
+Foram removidos do `main` os componentes do polling Python antigo e os scripts usados somente durante a migração:
 
 ```text
 app/gateway.py
 systemd/rc-scada-gateway.service
-
 scripts/rapid_stage1_prepare.sh
 scripts/rapid_stage1_cutover.sh
 scripts/rapid_stage1_rollback.sh
@@ -66,7 +66,17 @@ scripts/rapid_stage2_rollback.sh
 scripts/rapid_stage3_panel.sh
 ```
 
-O histórico continua preservado no Git e no branch de checkpoint.
+Também foi removida a antiga camada de perfis/importação Modbus do backend:
+
+```text
+app/profiles.py
+app/profile_importer.py
+docs/COMAP_PROFILES.md
+```
+
+O SQLite de runtime também deixou de usar telemetria e perfis próprios. Bases antigas podem continuar contendo as tabelas `telemetry` e `generator_profiles`; elas são ignoradas e não precisam ser apagadas de forma destrutiva.
+
+GenMon deixou de ser dependência de produção e não é mais clonado pelo instalador. Pode ser usado externamente durante pesquisa, sem participar do runtime.
 
 ## InteliCompact NT: manter temporariamente
 
@@ -82,43 +92,16 @@ Depois da validação de campo:
 - `DrvModbus_RC_ICNT_PROBE.xml` é removido;
 - `rapid_stage4_icnt.sh` é removido ou substituído por provisionamento genérico.
 
-## Revisar antes de remover
-
-```text
-app/profiles.py
-app/profile_importer.py
-docs/COMAP_PROFILES.md
-```
-
-Esses arquivos ainda são usados por partes do backend. A remoção exige primeiro retirar do painel/backend a camada antiga de perfil/importação e deixar templates/bindings do Rapid SCADA como fonte técnica dos pontos.
-
-## GenMon
-
-GenMon permanece fora deste Git, em `vendor/genmon`, como referência externa de perfis e nomenclatura. Ele não atua como mestre Modbus concorrente.
-
-## Limpeza da VM
-
-Após atualizar a VM para este `main`, o unit file legado pode continuar em `/etc/systemd/system` por ter sido instalado anteriormente. Remova somente o serviço legado com:
-
-```bash
-sudo systemctl disable --now rc-scada-gateway.service 2>/dev/null || true
-sudo rm -f /etc/systemd/system/rc-scada-gateway.service
-sudo systemctl daemon-reload
-sudo systemctl reset-failed
-```
-
-Isso não afeta `rc-scada-rapid-bridge`, Rapid SCADA ou o painel.
-
-## Estrutura alvo
+## Estrutura alvo atual
 
 ```text
 scada/
 ├── app/
+│   ├── controller_catalog.py
 │   ├── db.py
 │   ├── rapid_bridge.py
 │   ├── rapid_scada.py
 │   ├── web.py
-│   ├── controller_catalog.py
 │   ├── static/
 │   └── templates/
 ├── bin/
@@ -132,6 +115,7 @@ scada/
 │   ├── rapid_control_install.sh
 │   ├── rapid_dat.py
 │   ├── rapid_probe.sh
+│   ├── rapid_stage4_icnt.sh   # temporário
 │   └── status.sh
 ├── systemd/
 │   ├── rc-scada-web.service
@@ -141,3 +125,7 @@ scada/
 ├── install.sh
 └── requirements.txt
 ```
+
+## Próxima decisão de limpeza
+
+A próxima remoção só deve acontecer depois da InteliCompact NT ser concluída ou formalmente descartada. Até lá, os três artefatos de ICNT permanecem isolados e identificados como temporários.
