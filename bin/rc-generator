@@ -1,0 +1,121 @@
+#!/usr/bin/env python3
+"""CLI local para comandos remotos explicitamente permitidos pelo RC Bridge."""
+
+import argparse
+import getpass
+import json
+import os
+import socket
+import sys
+
+SOCKET_PATH = os.environ.get("RC_RAPID_CONTROL_SOCKET", "/run/rc-scada/control.sock")
+
+
+def request(payload):
+    sock = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
+    sock.settimeout(10)
+    try:
+        sock.connect(SOCKET_PATH)
+        sock.sendall((json.dumps(payload, ensure_ascii=False) + "\n").encode("utf-8"))
+        buf = bytearray()
+        while b"\n" not in buf:
+            chunk = sock.recv(4096)
+            if not chunk:
+                break
+            buf.extend(chunk)
+            if len(buf) > 16384:
+                raise RuntimeError("resposta grande demais")
+    finally:
+        sock.close()
+
+    if not buf:
+        raise RuntimeError("ponte não retornou resposta")
+    return json.loads(bytes(buf).split(b"\n", 1)[0].decode("utf-8"))
+
+
+def main():
+    parser = argparse.ArgumentParser(
+        prog="rc-generator",
+        description="Controle remoto restrito de geradores via RC Bridge",
+    )
+    sub = parser.add_subparsers(dest="action", required=True)
+
+    for action in ("start", "stop"):
+        p = sub.add_parser(action)
+        p.add_argument("--device", type=int, required=True, help="Número do device no Rapid SCADA")
+        p.add_argument(
+            "--confirm",
+            action="store_true",
+            help="Confirma explicitamente a execução do comando em máquina real",
+        )
+        p.add_argument(
+            "--ask-password",
+            action="store_true",
+            help="Solicita senha Modbus uint16 sem gravá-la na linha de comando",
+        )
+
+    args = parser.parse_args()
+
+    if os.geteuid() != 0:
+        print("ERRO: execute com sudo.", file=sys.stderr)
+        return 2
+
+    if not args.confirm:
+        print(
+            "BLOQUEADO: este comando pode operar uma máquina real. "
+            "Revise as condições locais e repita com --confirm somente se a partida/parada remota estiver autorizada.",
+            file=sys.stderr,
+        )
+        return 2
+
+    password = None
+    if args.ask_password:
+        raw = getpass.getpass("Senha Modbus da controladora (0..65535): ").strip()
+        if not raw.isdigit() or not 0 <= int(raw) <= 65535:
+            print("ERRO: senha deve ser um número entre 0 e 65535.", file=sys.stderr)
+            return 2
+        password = int(raw)
+
+    payload = {
+        "action": args.action,
+        "device": args.device,
+        "confirm": "REMOTE_CONTROL_CONFIRMED",
+    }
+    if password is not None:
+        payload["password"] = password
+
+    try:
+        result = request(payload)
+    except FileNotFoundError:
+        print(
+            f"ERRO: socket de controle não existe: {SOCKET_PATH}. "
+            "Execute scripts/rapid_control_install.sh primeiro.",
+            file=sys.stderr,
+        )
+        return 3
+    except Exception as exc:
+        print(f"ERRO: {exc}", file=sys.stderr)
+        return 3
+
+    print(json.dumps(result, ensure_ascii=False, indent=2))
+
+    if result.get("ok"):
+        action_pt = "PARTIDA" if args.action == "start" else "PARADA"
+        print(f"\n{action_pt} ACEITA pelo controlador.")
+        if result.get("rpm_after") is not None:
+            print(f"RPM após 2 s: {result['rpm_after']}")
+        return 0
+
+    reason = result.get("reason") or result.get("error") or "comando não aceito"
+    print(f"\nCOMANDO NÃO EXECUTADO: {reason}", file=sys.stderr)
+    if "acesso" in str(reason).lower() or "refus" in str(reason).lower():
+        print(
+            "Se a configuração da InteliGen exigir senha para Engine Cmd, "
+            "repita com --ask-password.",
+            file=sys.stderr,
+        )
+    return 4
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())
