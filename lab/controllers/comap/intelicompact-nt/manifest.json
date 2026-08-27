@@ -1,0 +1,28 @@
+{
+  "schema_version": 1,
+  "manufacturer": "ComAp",
+  "family": "InteliCompact NT",
+  "model": "InteliCompact NT",
+  "aliases": ["ICNT", "IC NT", "IC-NT"],
+  "status": "investigation",
+  "source_policy": ["official_documentation", "field_validation_required"],
+  "protocols": ["modbus"],
+  "transports": ["reverse_tcp", "modbus_tcp_direct", "rtu_over_tcp"],
+  "capabilities": {
+    "telemetry": false,
+    "start": false,
+    "stop": false,
+    "auto": false,
+    "manual": false,
+    "test": false,
+    "mains_breaker": false,
+    "generator_breaker": false,
+    "paralleling": false
+  },
+  "field_state": {
+    "unit_1": "no_response",
+    "unit_3": "no_response",
+    "unit_4": "no_response"
+  },
+  "notes": "Ainda não homologada. Confirmar endereço Modbus e parâmetros seriais antes de novo probe."
+}
