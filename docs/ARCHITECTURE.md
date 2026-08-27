@@ -35,18 +35,18 @@ ComAp / DSE
 
 ## RC Reverse TCP Bridge
 
-A ponte existe porque o modem inicia a sessão TCP a partir do campo, enquanto o Rapid SCADA normalmente atua como cliente/mestre Modbus.
+A ponte existe porque o modem inicia a sessão TCP a partir do campo, enquanto o Rapid SCADA atua como cliente/mestre Modbus.
 
-Responsabilidades da ponte:
+Responsabilidades:
 
 - aceitar a conexão reversa do modem na porta pública cadastrada;
-- expor a sessão ao Rapid SCADA em localhost, usando o deslocamento de porta configurado;
+- expor a sessão ao Rapid SCADA em localhost usando o deslocamento de porta configurado;
 - preservar uma única sessão física quando vários Unit IDs compartilham o mesmo modem/barramento;
 - serializar requisições e respostas;
 - reescrever Transaction IDs Modbus TCP sem perder alinhamento do stream;
 - manter o caminho normal do Rapid SCADA somente leitura, atualmente FC03/FC04.
 
-A ponte **não é o SCADA** e não deve voltar a executar polling de telemetria por conta própria.
+A ponte **não é o SCADA** e não executa polling de telemetria por conta própria.
 
 ## Rapid SCADA Communicator
 
@@ -62,9 +62,24 @@ Histórico, alarmística e demais funções industriais devem permanecer no Rapi
 
 ## Painel RC Geradores
 
-O painel é a camada de produto e operação. Ele mantém cadastro e identidade RC, mas a telemetria de equipamentos vinculados vem do Rapid SCADA Server.
+O painel é a camada de produto e operação. O SQLite próprio mantém cadastro, metadados do produto e eventos da aplicação.
 
-O SQLite próprio continua útil para cadastro, metadados do produto e eventos da aplicação. Ele não deve se tornar novamente o historiador industrial principal.
+O SQLite não é fonte industrial de telemetria nem historiador. Equipamentos vinculados recebem seus dados em runtime a partir do Rapid SCADA Server.
+
+## Mapas Modbus
+
+Não existe mais uma camada de perfis Modbus executada pelo backend Python.
+
+A fonte técnica de cada modelo é:
+
+```text
+rapid/templates/   -> mapa de registradores homologado
+rapid/bindings.json -> canais do Rapid SCADA usados pelo painel
+```
+
+O catálogo de controladoras contém apenas fabricante, família, modelo e aliases para cadastro.
+
+GenMon não participa do runtime e não é instalado na VM de produção. Quando útil, pode ser consultado externamente como referência durante pesquisa de um novo modelo, sem se tornar dependência do produto.
 
 ## Controle remoto
 
@@ -80,15 +95,17 @@ Comandos remotos são implementados separadamente e somente quando:
 
 A InteliGen 200 possui START/STOP implementado dessa forma pelo socket Unix local privilegiado. A liberação genérica de FC06/FC16 na porta do Rapid SCADA não faz parte da arquitetura.
 
-## GenMon
+## Componentes removidos
 
-O GenMon é mantido como dependência externa de referência para perfis, nomenclatura e pesquisa de controladoras quando aplicável. Ele não participa como mestre Modbus concorrente no fluxo normal.
+A arquitetura antiga foi encerrada. Foram removidos do `main`:
 
-## Componentes legados
+- `app/gateway.py` e o serviço `rc-scada-gateway`;
+- scripts de migração das etapas 1, 2 e 3;
+- `app/profiles.py`;
+- `app/profile_importer.py`;
+- a documentação da antiga camada de perfis.
 
-`app/gateway.py` e `systemd/rc-scada-gateway.service` pertencem à arquitetura anterior, quando o Python fazia polling Modbus. Eles permanecem temporariamente apenas para uma última fase de limpeza e recuperação histórica.
-
-Os scripts de migração `rapid_stage1_*`, `rapid_stage2_*` e `rapid_stage3_*` também são históricos. O plano de remoção está documentado em `docs/CLEANUP_PLAN.md`.
+Bases SQLite antigas podem continuar contendo tabelas `telemetry` e `generator_profiles`; elas não são mais usadas pelo runtime e não precisam ser apagadas de forma destrutiva.
 
 ## Regra de evolução
 
