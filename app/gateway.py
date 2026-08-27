@@ -1,6 +1,7 @@
 import asyncio
 import os
 import struct
+
 from . import db
 from .profiles import load_points
 
@@ -19,13 +20,15 @@ def crc16(data: bytes):
     return crc & 0xFFFF
 
 
-def rtu_request(unit, address, count):
-    pdu = struct.pack(">BBHH", unit, 3, address, count)
+def rtu_request(unit, address, count, function=3):
+    if function not in (3, 4):
+        raise ValueError(f"Função Modbus de leitura não suportada: {function}")
+    pdu = struct.pack(">BBHH", unit, function, address, count)
     crc = crc16(pdu)
     return pdu + struct.pack("<H", crc)
 
 
-async def rtu_response(reader, unit, count):
+async def rtu_response(reader, unit, count, function=3):
     head = await asyncio.wait_for(reader.readexactly(2), 3)
     ru, func = head[0], head[1]
     if ru != unit:
@@ -38,7 +41,7 @@ async def rtu_response(reader, unit, count):
             raise ValueError("CRC inválido")
         raise ValueError(f"Exceção Modbus {frame[2]}")
 
-    if func != 3:
+    if func != function:
         raise ValueError(f"Função Modbus inesperada {func}")
 
     byte_count_raw = await asyncio.wait_for(reader.readexactly(1), 3)
@@ -58,19 +61,18 @@ async def rtu_response(reader, unit, count):
     ]
 
 
-def tcp_request(tid, unit, address, count):
-    pdu = struct.pack(">BHH", 3, address, count)
+def tcp_request(tid, unit, address, count, function=3):
+    if function not in (3, 4):
+        raise ValueError(f"Função Modbus de leitura não suportada: {function}")
+    pdu = struct.pack(">BHH", function, address, count)
     return struct.pack(">HHHB", tid, 0, len(pdu) + 1, unit) + pdu
 
 
-async def tcp_response(reader, tid, unit, count):
-    """Read a complete MBAP frame and ignore stale replies from old requests.
+async def tcp_response(reader, tid, unit, count, function=3):
+    """Lê frames MBAP completos e descarta respostas atrasadas/estranhas.
 
-    On a shared serial bus a slow Unit ID can answer after its request timed out.
-    The old implementation validated TID/Unit immediately after the 7-byte
-    header and raised before consuming the body, leaving the stream permanently
-    out of alignment. Here every frame is consumed completely first; stale
-    TID/Unit frames are discarded until the expected response arrives.
+    Em uma porta compartilhada, uma Unit ID lenta ou tráfego que chegue pelo
+    gateway serial não pode desalinhavar o socket das demais controladoras.
     """
     loop = asyncio.get_running_loop()
     deadline = loop.time() + 3.0
@@ -94,8 +96,7 @@ async def tcp_response(reader, tid, unit, count):
 
         body = await asyncio.wait_for(reader.readexactly(length - 1), remaining)
 
-        # Resposta atrasada de outro request/Unit ID: já consumimos o frame
-        # inteiro, então podemos descartá-lo sem perder sincronismo do socket.
+        # Sempre consumimos o frame completo antes de decidir ignorá-lo.
         if rt != tid or ru != unit:
             continue
 
@@ -105,7 +106,7 @@ async def tcp_response(reader, tid, unit, count):
             if len(body) < 2:
                 raise ValueError("exceção Modbus TCP incompleta")
             raise ValueError(f"Exceção Modbus {body[1]}")
-        if body[0] != 3:
+        if body[0] != function:
             raise ValueError(f"Função Modbus inesperada {body[0]}")
         if len(body) < 2:
             raise ValueError("resposta Modbus TCP incompleta")
@@ -128,8 +129,26 @@ def combine(regs):
     return v
 
 
+def decode_value(regs, point):
+    dtype = str(point.get("datatype", "")).lower()
+    raw = combine(regs)
+
+    if dtype == "int16" and len(regs) == 1:
+        raw = struct.unpack(">h", struct.pack(">H", regs[0]))[0]
+    elif dtype == "int32" and len(regs) >= 2:
+        raw = struct.unpack(">i", struct.pack(">I", combine(regs[:2])))[0]
+    elif dtype == "float32" and len(regs) >= 2:
+        raw = struct.unpack(">f", struct.pack(">HH", regs[0], regs[1]))[0]
+
+    scale = float(point.get("scale", 1.0) or 1.0)
+    value = raw * scale
+    if isinstance(value, float):
+        return round(value, 3)
+    return value
+
+
 async def poll_controller_once(g, reader, writer, tid):
-    points = load_points(g["controller_type"], g.get("controller_model"))
+    points = load_points(g)
     unit = int(g["modbus_unit"])
     values = {}
     point_errors = []
@@ -139,32 +158,54 @@ async def poll_controller_once(g, reader, writer, tid):
 
     for p in points:
         try:
+            function = int(p.get("function", 3))
+            if function not in (3, 4):
+                point_errors.append(f"{p.get('key','point')}: função {function} ignorada")
+                continue
+
             if g["transport"] == "rtu_over_tcp":
-                writer.write(rtu_request(unit, p["address"], p["count"]))
+                writer.write(
+                    rtu_request(
+                        unit,
+                        int(p["address"]),
+                        int(p["count"]),
+                        function,
+                    )
+                )
                 await writer.drain()
-                regs = await rtu_response(reader, unit, p["count"])
+                regs = await rtu_response(
+                    reader,
+                    unit,
+                    int(p["count"]),
+                    function,
+                )
             else:
                 current_tid = tid
                 writer.write(
-                    tcp_request(current_tid, unit, p["address"], p["count"])
+                    tcp_request(
+                        current_tid,
+                        unit,
+                        int(p["address"]),
+                        int(p["count"]),
+                        function,
+                    )
                 )
                 await writer.drain()
                 regs = await tcp_response(
                     reader,
                     current_tid,
                     unit,
-                    p["count"],
+                    int(p["count"]),
+                    function,
                 )
                 tid = 1 if tid >= 65535 else tid + 1
 
-            raw = combine(regs)
-            values[p["key"]] = round(raw * p["scale"], 3)
+            values[p["key"]] = decode_value(regs, p)
 
         except ValueError as e:
-            # Uma excecao Modbus de um registrador nao deve derrubar o modem,
-            # nem impedir a leitura das outras controladoras da mesma porta.
+            # Uma exceção de um ponto não derruba o modem nem as outras Units.
             if "Exceção Modbus" in str(e):
-                point_errors.append(f"{p['key']}: {e}")
+                point_errors.append(f"{p.get('key','point')}: {e}")
                 continue
             raise
 
@@ -206,8 +247,6 @@ async def poll_port(generators, reader, writer):
                     )
 
             except asyncio.TimeoutError:
-                # Um Unit ID pode estar offline enquanto o outro continua na
-                # mesma rede RS485. Mantemos a sessao TCP do modem ativa.
                 db.update_telemetry(
                     g["id"],
                     connected=True,
@@ -247,7 +286,6 @@ async def client(port, generators, reader, writer):
     try:
         await poll_port(generators, reader, writer)
     except Exception as e:
-        # Erro de framing/conexao e fatal para a sessao compartilhada.
         for g in generators:
             db.update_telemetry(
                 g["id"],
@@ -257,8 +295,6 @@ async def client(port, generators, reader, writer):
             )
             db.add_event(g["id"], "WARN", f"Falha de polling: {e}")
     finally:
-        # Se uma conexao nova ja substituiu esta, nao marque os geradores como
-        # offline por causa do fechamento tardio da conexao antiga.
         if active_connections.get(port) is writer:
             active_connections.pop(port, None)
             for g in generators:
@@ -307,6 +343,7 @@ async def reconcile():
                     int(g["modbus_unit"]),
                     g["controller_type"],
                     g.get("controller_model"),
+                    g.get("profile_updated_at"),
                 )
                 for g in generators
             )
