@@ -53,7 +53,7 @@ def _field(row, aliases):
     for alias in aliases:
         needle = _norm(alias)
         for key, value in normalized.items():
-            if key == needle or needle in key:
+            if key == needle or (len(needle) >= 5 and needle in key):
                 if str(value or "").strip():
                     return value, key
     return "", ""
@@ -155,13 +155,15 @@ def _parse_address(value, header_name="", function_hint=3):
     n = int(nums[0])
     h = _norm(header_name)
 
-    if "offset" in h or "reg base" in h:
-        return n, function_hint
-
+    # Notação documental 4xxxx/3xxxx tem precedência mesmo que o cabeçalho
+    # mencione "offset"; offsets reais normalmente são números menores.
     if 40001 <= n <= 49999:
         return n - 40001, 3
     if 30001 <= n <= 39999:
         return n - 30001, 4
+
+    if "offset" in h or "reg base" in h:
+        return n, function_hint
     return n, function_hint
 
 
