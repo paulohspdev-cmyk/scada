@@ -1,0 +1,39 @@
+{
+  "schema_version": 1,
+  "transports": [
+    {
+      "key": "reverse_tcp",
+      "name": "Modem TCP Client / TCP reverso",
+      "rapid_path": "RC Reverse Bridge -> Rapid SCADA",
+      "default_port": 15001,
+      "uses_bridge": true
+    },
+    {
+      "key": "modbus_tcp_direct",
+      "name": "Modbus TCP direto",
+      "rapid_path": "Rapid SCADA -> equipamento",
+      "default_port": 502,
+      "uses_bridge": false
+    },
+    {
+      "key": "rtu_over_tcp",
+      "name": "Modbus RTU sobre gateway TCP",
+      "rapid_path": "Rapid SCADA -> gateway TCP/RS485",
+      "default_port": 502,
+      "uses_bridge": false
+    },
+    {
+      "key": "serial_rtu",
+      "name": "Modbus RTU serial local",
+      "rapid_path": "Rapid SCADA -> porta serial",
+      "uses_bridge": false
+    },
+    {
+      "key": "vpn_modbus_tcp",
+      "name": "Modbus TCP por VPN",
+      "rapid_path": "Rapid SCADA -> VPN -> equipamento",
+      "default_port": 502,
+      "uses_bridge": false
+    }
+  ]
+}
