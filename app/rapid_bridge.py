@@ -194,9 +194,18 @@ class BridgePort:
                 writer.write(mbap(remote_tid, unit, pdu))
                 await writer.drain()
                 return await self.read_remote_response(remote_tid, unit, function)
-            except (asyncio.TimeoutError, ConnectionError, asyncio.IncompleteReadError) as exc:
+            except asyncio.TimeoutError:
+                # Um Unit ID que não responde não deve derrubar a sessão física
+                # compartilhada por outras controladoras. Se uma resposta chegar
+                # atrasada, read_remote_response() a consome e descarta pelo TID/Unit.
                 log(
-                    f"porta {self.remote_port}: sem resposta Unit {unit} FC{function:02d}: {type(exc).__name__}"
+                    f"porta {self.remote_port}: timeout Unit {unit} FC{function:02d}; "
+                    "mantendo conexão compartilhada"
+                )
+                return exception_pdu(function, 11)
+            except (ConnectionError, asyncio.IncompleteReadError) as exc:
+                log(
+                    f"porta {self.remote_port}: conexão perdida Unit {unit} FC{function:02d}: {type(exc).__name__}"
                 )
                 await self.clear_remote(only_writer=writer)
                 return exception_pdu(function, 11)
