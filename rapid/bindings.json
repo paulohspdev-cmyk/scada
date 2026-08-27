@@ -1,0 +1,19 @@
+[
+  {
+    "controller_type": "COMAP",
+    "controller_model": "InteliGen 200",
+    "listen_port": 15001,
+    "modbus_unit": 2,
+    "rapid_device_num": 200,
+    "channels": {
+      "rpm": {"cnl": 2001, "scale": 1.0},
+      "voltage_l1": {"cnl": 2002, "scale": 1.0},
+      "voltage_l2": {"cnl": 2003, "scale": 1.0},
+      "voltage_l3": {"cnl": 2004, "scale": 1.0},
+      "voltage_l1_l2": {"cnl": 2005, "scale": 1.0},
+      "voltage_l2_l3": {"cnl": 2006, "scale": 1.0},
+      "voltage_l3_l1": {"cnl": 2007, "scale": 1.0},
+      "frequency": {"cnl": 2008, "scale": 0.01}
+    }
+  }
+]
