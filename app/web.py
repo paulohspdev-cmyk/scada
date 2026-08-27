@@ -5,6 +5,7 @@ from flask import Flask, jsonify, render_template, request
 
 from . import db
 from .controller_catalog import find_controller_model, list_controller_models
+from .controller_library import list_controller_packs
 from .rapid_scada import dashboard_from_generators, overlay_generators
 
 app = Flask(__name__)
@@ -29,6 +30,11 @@ def health():
 def api_controller_models():
     controller_type = request.args.get("type")
     return jsonify(list_controller_models(controller_type))
+
+
+@app.get("/api/controller-library")
+def api_controller_library():
+    return jsonify(list_controller_packs())
 
 
 @app.get("/api/dashboard")
