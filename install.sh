@@ -51,15 +51,6 @@ chmod +x "$BASE/install.sh"
 find "$BASE/scripts" -maxdepth 1 -type f -name '*.sh' -exec chmod +x {} \;
 chmod +x "$BASE/bin/rc-generator" 2>/dev/null || true
 
-mkdir -p "$BASE/vendor"
-echo
-echo "Baixando/atualizando GenMon como referencia externa..."
-if [[ -d "$BASE/vendor/genmon/.git" ]]; then
-  git -C "$BASE/vendor/genmon" pull --ff-only
-else
-  git clone --depth 1 https://github.com/jgyates/genmon.git "$BASE/vendor/genmon"
-fi
-
 echo
 echo "Instalando Rapid SCADA Community ${RAPID_VERSION}..."
 rm -rf "$TMP"
@@ -97,7 +88,6 @@ cat >"$ENV_FILE" <<EOF
 RC_DB_PATH=/var/lib/rc-scada/scada.db
 RC_BIND=127.0.0.1
 RC_WEB_PORT=8088
-GENMON_ROOT=/opt/rc-scada/vendor/genmon
 RC_RAPID_REMOTE_BIND=0.0.0.0
 RC_RAPID_LOCAL_BIND=127.0.0.1
 RC_RAPID_LOCAL_OFFSET=10000
@@ -133,8 +123,9 @@ cp "$BASE/systemd/rc-scada-rapid-bridge.service" /etc/systemd/system/
 systemctl daemon-reload
 
 # O gateway Python antigo nao pertence mais a arquitetura oficial.
-# Se existir de uma instalacao anterior, deixa parado e desabilitado.
 systemctl disable --now rc-scada-gateway.service 2>/dev/null || true
+rm -f /etc/systemd/system/rc-scada-gateway.service
+systemctl daemon-reload
 
 sudo -u rcscada env RC_DB_PATH=/var/lib/rc-scada/scada.db \
   PYTHONPATH="$BASE" "$BASE/.venv/bin/python" "$BASE/scripts/init_db.py"
@@ -168,10 +159,8 @@ echo " RC GERADORES INSTALADO"
 echo "============================================================"
 echo " Interface:  http://${IP:-IP_DA_VM}/"
 echo " Banco RC:   /var/lib/rc-scada/scada.db"
-echo " GenMon:     $BASE/vendor/genmon (referencia)"
 echo " Rapid:      /opt/scada"
 echo " Bridge:     rc-scada-rapid-bridge"
-echo " Gateway antigo: desabilitado"
 echo
 echo " Arquitetura:"
 echo "   modem -> bridge -> Rapid SCADA Communicator -> Server -> painel"
