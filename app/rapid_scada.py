@@ -5,7 +5,14 @@ import time
 from pathlib import Path
 
 BASE_DIR = Path(__file__).resolve().parents[1]
-BINDINGS_FILE = Path(os.environ.get("RC_RAPID_BINDINGS", BASE_DIR / "rapid" / "bindings.json"))
+REPO_BINDINGS_FILE = BASE_DIR / "rapid" / "bindings.json"
+RUNTIME_BINDINGS_FILE = Path("/var/lib/rc-scada/rapid-bindings.json")
+BINDINGS_FILE = Path(
+    os.environ.get(
+        "RC_RAPID_BINDINGS",
+        str(RUNTIME_BINDINGS_FILE if RUNTIME_BINDINGS_FILE.exists() else REPO_BINDINGS_FILE),
+    )
+)
 READER_DLL = Path(os.environ.get("RC_RAPID_READER", BASE_DIR / ".rapid-reader" / "RcRapidReader.dll"))
 COMM_CONFIG = Path(os.environ.get("RC_RAPID_COMM_CONFIG", "/opt/scada/ScadaComm/Config/ScadaCommConfig.xml"))
 CACHE_TTL = float(os.environ.get("RC_RAPID_CACHE_TTL", "1.5"))
