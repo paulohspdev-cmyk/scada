@@ -1,0 +1,38 @@
+{
+  "schema_version": 1,
+  "manufacturer": "ComAp",
+  "family": "InteliGen",
+  "model": "InteliGen 200",
+  "aliases": ["IG200", "IG 200"],
+  "status": "field_validated",
+  "source_policy": ["official_documentation", "field_validation"],
+  "protocols": ["modbus"],
+  "transports": ["reverse_tcp", "modbus_tcp_direct", "rtu_over_tcp"],
+  "rapid": {
+    "device_template": "rapid/templates/DrvModbus_RC_IG200.xml",
+    "device_num": 200,
+    "channels": [2001, 2002, 2003, 2004, 2005, 2006, 2007, 2008]
+  },
+  "capabilities": {
+    "telemetry": true,
+    "start": true,
+    "stop": true,
+    "auto": false,
+    "manual": false,
+    "test": false,
+    "mains_breaker": false,
+    "generator_breaker": false,
+    "paralleling": false
+  },
+  "telemetry": [
+    "rpm",
+    "frequency",
+    "voltage_l1",
+    "voltage_l2",
+    "voltage_l3",
+    "voltage_l1_l2",
+    "voltage_l2_l3",
+    "voltage_l3_l1"
+  ],
+  "notes": "Telemetria e START/STOP validados em campo. Novos comandos exigem homologação separada."
+}
