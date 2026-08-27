@@ -8,6 +8,7 @@ from . import db
 from .controller_catalog import find_controller_model, list_controller_models
 from .profile_importer import parse_profile_upload
 from .profiles import load_points, profile_info
+from .rapid_scada import dashboard_from_generators, overlay_generators
 
 app = Flask(__name__)
 db.init_db()
@@ -19,6 +20,10 @@ def _with_profile(obj):
     out = dict(obj)
     out["profile"] = profile_info(out)
     return out
+
+
+def _current_generators():
+    return overlay_generators([_with_profile(g) for g in db.list_generators()])
 
 
 @app.get("/")
@@ -39,12 +44,13 @@ def api_controller_models():
 
 @app.get("/api/dashboard")
 def api_dashboard():
-    return jsonify(db.dashboard())
+    generators = _current_generators()
+    return jsonify(dashboard_from_generators(generators))
 
 
 @app.get("/api/generators")
 def api_generators():
-    return jsonify([_with_profile(g) for g in db.list_generators()])
+    return jsonify(_current_generators())
 
 
 @app.post("/api/generators")
@@ -80,7 +86,10 @@ def api_create_generator():
 @app.get("/api/generators/<int:gid>")
 def api_generator(gid):
     obj = db.get_generator(gid)
-    return (jsonify(_with_profile(obj)), 200) if obj else (jsonify({"error": "não encontrado"}), 404)
+    if not obj:
+        return jsonify({"error": "não encontrado"}), 404
+    current = overlay_generators([_with_profile(obj)])[0]
+    return jsonify(current), 200
 
 
 @app.patch("/api/generators/<int:gid>")
