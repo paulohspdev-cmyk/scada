@@ -11,16 +11,28 @@ PROFILE_FILES = {
     "DSE": "data/controller/Deepsea_controller.json",
 }
 
-# Perfil inicial da ComAp InteliGen 200 validado em campo via Modbus TCP.
+# ComAp InteliGen 200 - pontos confirmados em campo neste projeto.
 IG200_POINTS = [
-    {"key": "rpm", "label": "RPM", "address": 1000, "count": 1, "function": 3, "datatype": "uint16", "scale": 1.0, "comment": "Validado em campo: ~1800 rpm"},
-    {"key": "voltage_l1", "label": "Generator Voltage L1-N", "address": 1036, "count": 1, "function": 3, "datatype": "uint16", "scale": 1.0, "comment": "Validado em campo"},
-    {"key": "voltage_l2", "label": "Generator Voltage L2-N", "address": 1037, "count": 1, "function": 3, "datatype": "uint16", "scale": 1.0, "comment": "Validado em campo"},
-    {"key": "voltage_l3", "label": "Generator Voltage L3-N", "address": 1038, "count": 1, "function": 3, "datatype": "uint16", "scale": 1.0, "comment": "Validado em campo"},
-    {"key": "voltage_l1_l2", "label": "Generator Voltage L1-L2", "address": 1039, "count": 1, "function": 3, "datatype": "uint16", "scale": 1.0, "comment": "Validado em campo"},
-    {"key": "voltage_l2_l3", "label": "Generator Voltage L2-L3", "address": 1040, "count": 1, "function": 3, "datatype": "uint16", "scale": 1.0, "comment": "Validado em campo"},
-    {"key": "voltage_l3_l1", "label": "Generator Voltage L3-L1", "address": 1041, "count": 1, "function": 3, "datatype": "uint16", "scale": 1.0, "comment": "Validado em campo"},
-    {"key": "frequency", "label": "Generator Frequency", "address": 1045, "count": 1, "function": 3, "datatype": "uint16", "scale": 0.01, "comment": "Validado em campo: valor bruto 6003 = 60.03 Hz"},
+    {"key": "rpm", "label": "RPM", "address": 1000, "count": 1, "function": 3, "datatype": "uint16", "scale": 1.0, "comment": "Validado em campo"},
+    {"key": "voltage_l1", "label": "Tensão gerador L1-N", "address": 1036, "count": 1, "function": 3, "datatype": "uint16", "scale": 1.0, "comment": "Validado em campo"},
+    {"key": "voltage_l2", "label": "Tensão gerador L2-N", "address": 1037, "count": 1, "function": 3, "datatype": "uint16", "scale": 1.0, "comment": "Validado em campo"},
+    {"key": "voltage_l3", "label": "Tensão gerador L3-N", "address": 1038, "count": 1, "function": 3, "datatype": "uint16", "scale": 1.0, "comment": "Validado em campo"},
+    {"key": "voltage_l1_l2", "label": "Tensão gerador L1-L2", "address": 1039, "count": 1, "function": 3, "datatype": "uint16", "scale": 1.0, "comment": "Validado em campo"},
+    {"key": "voltage_l2_l3", "label": "Tensão gerador L2-L3", "address": 1040, "count": 1, "function": 3, "datatype": "uint16", "scale": 1.0, "comment": "Validado em campo"},
+    {"key": "voltage_l3_l1", "label": "Tensão gerador L3-L1", "address": 1041, "count": 1, "function": 3, "datatype": "uint16", "scale": 1.0, "comment": "Validado em campo"},
+    {"key": "frequency", "label": "Frequência gerador", "address": 1045, "count": 1, "function": 3, "datatype": "uint16", "scale": 0.01, "comment": "Validado em campo"},
+]
+
+# ComAp InteliCompact NT - somente leitura, conforme IL-NT / IA-NT / IC-NT
+# Communication Guide. Os endereços abaixo são offsets Modbus (registro 4xxxx
+# menos 40001). Nenhum comando de escrita é usado.
+ICNT_POINTS = [
+    {"key": "battery_voltage", "label": "Tensão bateria", "address": 57, "count": 1, "function": 3, "datatype": "int16", "scale": 0.1, "unit": "V", "comment": "IC-NT: registro 40058"},
+    {"key": "oil_pressure", "label": "Pressão óleo", "address": 60, "count": 1, "function": 3, "datatype": "int16", "scale": 0.1, "unit": "bar", "comment": "IC-NT: registro 40061"},
+    {"key": "coolant_temperature", "label": "Temperatura motor", "address": 61, "count": 1, "function": 3, "datatype": "int16", "scale": 1.0, "unit": "°C", "comment": "IC-NT: registro 40062"},
+    {"key": "fuel_level", "label": "Nível combustível", "address": 62, "count": 1, "function": 3, "datatype": "uint16", "scale": 1.0, "unit": "%", "comment": "IC-NT: registro 40063"},
+    {"key": "binary_inputs_raw", "label": "Entradas digitais", "address": 68, "count": 1, "function": 3, "datatype": "uint16", "scale": 1.0, "comment": "IC-NT: registro 40069"},
+    {"key": "controller_mode_raw", "label": "Modo controladora", "address": 79, "count": 1, "function": 3, "datatype": "uint16", "scale": 1.0, "comment": "IC-NT: registro 40080"},
 ]
 
 WANTED = {
@@ -127,11 +139,6 @@ def _imported_points(generator_id):
 
 
 def load_points(controller_type, controller_model=None, generator_id=None):
-    """Carrega o perfil ativo.
-
-    Aceita tanto os argumentos antigos (tipo, modelo, id) quanto um dicionário
-    completo de gerador. Um perfil importado por gerador sempre tem prioridade.
-    """
     if isinstance(controller_type, dict):
         g = controller_type
         ctype = str(g.get("controller_type", "")).upper()
@@ -149,8 +156,8 @@ def load_points(controller_type, controller_model=None, generator_id=None):
     if ctype == "COMAP":
         if profile_key == "ig200":
             return [dict(p, enabled=True) for p in IG200_POINTS]
-        # Demais ComAp só entram em polling depois de mapa oficial/exportado
-        # importado. Isso evita aplicar um mapa de outra aplicação/firmware.
+        if profile_key == "icnt_nt":
+            return [dict(p, enabled=True) for p in ICNT_POINTS]
         return []
 
     if ctype == "DSE":
@@ -160,7 +167,7 @@ def load_points(controller_type, controller_model=None, generator_id=None):
 
 
 def profile_info(generator):
-    """Resumo de perfil para API/UI, sem iniciar qualquer escrita Modbus."""
+    """Metadados internos de comunicação; a interface principal não os exibe."""
     ctype = str(generator.get("controller_type", "")).upper()
     model = generator.get("controller_model", "")
     gid = generator.get("id")
@@ -169,9 +176,9 @@ def profile_info(generator):
         "profile_key": None,
         "map_mode": "unknown",
         "profile_status": "unknown",
-        "profile_label": "SEM PERFIL",
+        "profile_label": "",
         "requires_import": True,
-        "hint": "Modelo sem perfil catalogado.",
+        "hint": "",
     }
 
     imported = db.get_generator_profile(gid) if gid else None
@@ -183,7 +190,6 @@ def profile_info(generator):
         ]
         return {
             "state": "active_imported" if active_points else "imported_no_active_points",
-            "label": "MAPA IMPORTADO" if active_points else "MAPA SEM PONTOS ATIVOS",
             "active": bool(active_points),
             "requires_import": not bool(active_points),
             "source_name": imported.get("source_name", ""),
@@ -194,17 +200,22 @@ def profile_info(generator):
             "catalog": catalog,
         }
 
+    builtin = None
     if catalog.get("profile_key") == "ig200":
+        builtin = IG200_POINTS
+    elif catalog.get("profile_key") == "icnt_nt":
+        builtin = ICNT_POINTS
+
+    if builtin is not None:
         return {
             "state": "active_builtin",
-            "label": "PERFIL RC VALIDADO",
             "active": True,
             "requires_import": False,
-            "source_name": "RC Geradores / validação de campo",
+            "source_name": "builtin",
             "source_type": "builtin",
             "updated_at": None,
-            "points": len(IG200_POINTS),
-            "active_points": len(IG200_POINTS),
+            "points": len(builtin),
+            "active_points": len(builtin),
             "catalog": catalog,
         }
 
@@ -215,7 +226,6 @@ def profile_info(generator):
             count = 0
         return {
             "state": "reference",
-            "label": "PERFIL DE REFERÊNCIA",
             "active": count > 0,
             "requires_import": False,
             "source_name": "GenMon",
@@ -227,8 +237,7 @@ def profile_info(generator):
         }
 
     return {
-        "state": "awaiting_import",
-        "label": catalog.get("profile_label", "IMPORTAR MAPA"),
+        "state": "awaiting_data",
         "active": False,
         "requires_import": True,
         "source_name": "",
