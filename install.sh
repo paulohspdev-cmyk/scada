@@ -40,7 +40,7 @@ else
   rm -rf "$BASE"
   git clone "$REPO" "$BASE"
 fi
-chmod +x "$BASE/install.sh" "$BASE/scripts/status.sh"
+chmod +x "$BASE/install.sh" "$BASE/scripts/status.sh" "$BASE/scripts/rapid_probe.sh"
 
 mkdir -p "$BASE/vendor"
 echo "Baixando GenMon oficial..."
@@ -83,12 +83,18 @@ RC_WEB_PORT=8088
 GENMON_ROOT=/opt/rc-scada/vendor/genmon
 RC_GATEWAY_BIND=0.0.0.0
 RC_POLL_SECONDS=2
+RC_RAPID_REMOTE_BIND=0.0.0.0
+RC_RAPID_LOCAL_BIND=127.0.0.1
+RC_RAPID_LOCAL_OFFSET=10000
+RC_RAPID_BRIDGE_TIMEOUT=4
+RC_RAPID_RECONCILE_SECONDS=5
 EOF
 chmod 640 /etc/rc-scada.env
 chown root:rcscada /etc/rc-scada.env
 
 cp "$BASE/systemd/rc-scada-web.service" /etc/systemd/system/
 cp "$BASE/systemd/rc-scada-gateway.service" /etc/systemd/system/
+cp "$BASE/systemd/rc-scada-rapid-bridge.service" /etc/systemd/system/
 systemctl daemon-reload
 
 sudo -u rcscada env RC_DB_PATH=/var/lib/rc-scada/scada.db \
@@ -101,8 +107,14 @@ rm -f /etc/nginx/sites-enabled/default
 nginx -t
 systemctl enable --now nginx
 
-echo "Ativando RC SCADA..."
+echo "Ativando RC SCADA atual..."
 systemctl enable --now rc-scada-web rc-scada-gateway
+
+# A ponte para Rapid SCADA fica apenas instalada. Ela não pode escutar as
+# mesmas portas públicas do gateway atual ao mesmo tempo. O corte será feito
+# de forma controlada somente depois que o Communicator estiver configurado.
+systemctl disable rc-scada-rapid-bridge.service 2>/dev/null || true
+systemctl stop rc-scada-rapid-bridge.service 2>/dev/null || true
 
 echo "Ativando serviços Rapid SCADA disponíveis..."
 for svc in scadaagent6.service scadaserver6.service scadacomm6.service scadaweb6.service; do
@@ -128,6 +140,12 @@ echo " Libere/encaminhe no firewall apenas as portas usadas."
 echo
 echo " Status:"
 echo "   $BASE/scripts/status.sh"
+echo
+echo " Diagnostico Rapid SCADA (somente leitura):"
+echo "   sudo bash $BASE/scripts/rapid_probe.sh"
+echo
+echo " Ponte Rapid preparada, mas NAO ativada."
+echo " O gateway atual permanece responsável pelas portas dos modems até o corte controlado."
 echo
 echo " Atualização futura:"
 echo "   cd $BASE && sudo git pull && sudo systemctl restart rc-scada-web rc-scada-gateway"
