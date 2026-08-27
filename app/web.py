@@ -1,29 +1,18 @@
 import os
 import sqlite3
-from pathlib import Path
 
 from flask import Flask, jsonify, render_template, request
 
 from . import db
 from .controller_catalog import find_controller_model, list_controller_models
-from .profile_importer import parse_profile_upload
-from .profiles import load_points, profile_info
 from .rapid_scada import dashboard_from_generators, overlay_generators
 
 app = Flask(__name__)
 db.init_db()
 
 
-def _with_profile(obj):
-    if not obj:
-        return obj
-    out = dict(obj)
-    out["profile"] = profile_info(out)
-    return out
-
-
 def _current_generators():
-    return overlay_generators([_with_profile(g) for g in db.list_generators()])
+    return overlay_generators(db.list_generators())
 
 
 @app.get("/")
@@ -70,7 +59,7 @@ def api_create_generator():
 
     try:
         obj = db.create_generator(data)
-        return jsonify(_with_profile(obj)), 201
+        return jsonify(obj), 201
     except sqlite3.IntegrityError as e:
         return (
             jsonify(
@@ -88,8 +77,7 @@ def api_generator(gid):
     obj = db.get_generator(gid)
     if not obj:
         return jsonify({"error": "não encontrado"}), 404
-    current = overlay_generators([_with_profile(obj)])[0]
-    return jsonify(current), 200
+    return jsonify(overlay_generators([obj])[0]), 200
 
 
 @app.patch("/api/generators/<int:gid>")
@@ -106,7 +94,7 @@ def api_update_generator(gid):
 
     try:
         obj = db.update_generator(gid, data)
-        return (jsonify(_with_profile(obj)), 200) if obj else (jsonify({"error": "não encontrado"}), 404)
+        return (jsonify(obj), 200) if obj else (jsonify({"error": "não encontrado"}), 404)
     except sqlite3.IntegrityError as e:
         return (
             jsonify(
@@ -125,76 +113,6 @@ def api_delete_generator(gid):
         return jsonify({"error": "não encontrado"}), 404
     db.delete_generator(gid)
     return "", 204
-
-
-@app.get("/api/generators/<int:gid>/profile")
-def api_profile(gid):
-    obj = db.get_generator(gid)
-    if not obj:
-        return jsonify({"error": "não encontrado"}), 404
-    try:
-        return jsonify(load_points(obj))
-    except Exception as e:
-        return jsonify({"error": str(e)}), 500
-
-
-@app.get("/api/generators/<int:gid>/profile/meta")
-def api_profile_meta(gid):
-    obj = db.get_generator(gid)
-    if not obj:
-        return jsonify({"error": "não encontrado"}), 404
-    return jsonify(profile_info(obj))
-
-
-@app.post("/api/generators/<int:gid>/profile/import")
-def api_profile_import(gid):
-    obj = db.get_generator(gid)
-    if not obj:
-        return jsonify({"error": "não encontrado"}), 404
-
-    upload = request.files.get("file")
-    if not upload or not upload.filename:
-        return jsonify({"error": "Envie um arquivo CSV, TXT, TSV ou JSON"}), 400
-
-    data = upload.read()
-    if len(data) > 2 * 1024 * 1024:
-        return jsonify({"error": "Arquivo maior que 2 MB"}), 413
-
-    try:
-        points, warnings = parse_profile_upload(upload.filename, data)
-    except (ValueError, UnicodeError) as e:
-        return jsonify({"error": str(e)}), 400
-
-    active_points = sum(1 for p in points if p.get("enabled", True))
-    source_name = Path(upload.filename).name
-    db.save_generator_profile(
-        gid,
-        source_name=source_name,
-        source_type="controller_export",
-        points=points,
-        status="active" if active_points else "review",
-    )
-
-    updated = db.get_generator(gid)
-    return jsonify(
-        {
-            "ok": True,
-            "detected_points": len(points),
-            "active_points": active_points,
-            "review_points": len(points) - active_points,
-            "warnings": warnings,
-            "profile": profile_info(updated),
-        }
-    )
-
-
-@app.delete("/api/generators/<int:gid>/profile/import")
-def api_profile_delete(gid):
-    obj = db.get_generator(gid)
-    if not obj:
-        return jsonify({"error": "não encontrado"}), 404
-    db.delete_generator_profile(gid)
-    return jsonify({"ok": True, "profile": profile_info(db.get_generator(gid))})
 
 
 @app.get("/api/events")
