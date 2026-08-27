@@ -50,6 +50,15 @@ CREATE TABLE IF NOT EXISTS events (
     created_at INTEGER NOT NULL,
     FOREIGN KEY(generator_id) REFERENCES generators(id) ON DELETE CASCADE
 );
+CREATE TABLE IF NOT EXISTS generator_profiles (
+    generator_id INTEGER PRIMARY KEY,
+    source_name TEXT NOT NULL DEFAULT '',
+    source_type TEXT NOT NULL DEFAULT 'import',
+    status TEXT NOT NULL DEFAULT 'imported',
+    imported_at INTEGER NOT NULL,
+    points_json TEXT NOT NULL DEFAULT '[]',
+    FOREIGN KEY(generator_id) REFERENCES generators(id) ON DELETE CASCADE
+);
 """
 
 
@@ -88,8 +97,6 @@ def _migrate_shared_ports(conn):
     if not exists:
         return
 
-    # Banco antigo tinha UNIQUE apenas em listen_port. Se essa restricao nao
-    # existe, a migracao ja foi aplicada ou o banco ja nasceu no novo formato.
     if ["listen_port"] not in _unique_index_columns(conn):
         return
 
@@ -137,10 +144,21 @@ def list_generators():
     with connect() as conn:
         rows = conn.execute(
             """
-            SELECT g.*, COALESCE(t.connected,0) connected, COALESCE(t.poll_ok,0) poll_ok,
-                   COALESCE(t.peer,'') peer, t.last_seen, COALESCE(t.last_error,'') last_error,
-                   COALESCE(t.values_json,'{}') values_json
-            FROM generators g LEFT JOIN telemetry t ON t.generator_id=g.id
+            SELECT
+                g.*,
+                COALESCE(t.connected,0) connected,
+                COALESCE(t.poll_ok,0) poll_ok,
+                COALESCE(t.peer,'') peer,
+                t.last_seen,
+                COALESCE(t.last_error,'') last_error,
+                COALESCE(t.values_json,'{}') values_json,
+                CASE WHEN p.generator_id IS NULL THEN 0 ELSE 1 END profile_imported,
+                COALESCE(p.source_name,'') profile_source_name,
+                COALESCE(p.source_type,'') profile_source_type,
+                p.imported_at profile_updated_at
+            FROM generators g
+            LEFT JOIN telemetry t ON t.generator_id=g.id
+            LEFT JOIN generator_profiles p ON p.generator_id=g.id
             ORDER BY g.listen_port, g.modbus_unit, g.code
             """
         ).fetchall()
@@ -151,10 +169,21 @@ def get_generator(generator_id):
     with connect() as conn:
         row = conn.execute(
             """
-            SELECT g.*, COALESCE(t.connected,0) connected, COALESCE(t.poll_ok,0) poll_ok,
-                   COALESCE(t.peer,'') peer, t.last_seen, COALESCE(t.last_error,'') last_error,
-                   COALESCE(t.values_json,'{}') values_json
-            FROM generators g LEFT JOIN telemetry t ON t.generator_id=g.id
+            SELECT
+                g.*,
+                COALESCE(t.connected,0) connected,
+                COALESCE(t.poll_ok,0) poll_ok,
+                COALESCE(t.peer,'') peer,
+                t.last_seen,
+                COALESCE(t.last_error,'') last_error,
+                COALESCE(t.values_json,'{}') values_json,
+                CASE WHEN p.generator_id IS NULL THEN 0 ELSE 1 END profile_imported,
+                COALESCE(p.source_name,'') profile_source_name,
+                COALESCE(p.source_type,'') profile_source_type,
+                p.imported_at profile_updated_at
+            FROM generators g
+            LEFT JOIN telemetry t ON t.generator_id=g.id
+            LEFT JOIN generator_profiles p ON p.generator_id=g.id
             WHERE g.id=?
             """,
             (generator_id,),
@@ -241,6 +270,73 @@ def delete_generator(generator_id):
         conn.execute("DELETE FROM generators WHERE id=?", (generator_id,))
 
 
+def get_generator_profile(generator_id):
+    with connect() as conn:
+        row = conn.execute(
+            "SELECT * FROM generator_profiles WHERE generator_id=?",
+            (generator_id,),
+        ).fetchone()
+    if not row:
+        return None
+    data = dict(row)
+    try:
+        data["points"] = json.loads(data.pop("points_json", "[]") or "[]")
+    except Exception:
+        data["points"] = []
+    return data
+
+
+def save_generator_profile(
+    generator_id,
+    *,
+    source_name,
+    source_type,
+    points,
+    status="imported",
+):
+    now = int(time.time())
+    payload = json.dumps(points, ensure_ascii=False)
+    with connect() as conn:
+        conn.execute(
+            """
+            INSERT INTO generator_profiles
+                (generator_id,source_name,source_type,status,imported_at,points_json)
+            VALUES (?,?,?,?,?,?)
+            ON CONFLICT(generator_id) DO UPDATE SET
+                source_name=excluded.source_name,
+                source_type=excluded.source_type,
+                status=excluded.status,
+                imported_at=excluded.imported_at,
+                points_json=excluded.points_json
+            """,
+            (generator_id, source_name, source_type, status, now, payload),
+        )
+        conn.execute(
+            "INSERT INTO events(generator_id,level,message,created_at) VALUES (?,?,?,?)",
+            (
+                generator_id,
+                "INFO",
+                f"Perfil Modbus importado: {source_name} ({len(points)} pontos detectados)",
+                now,
+            ),
+        )
+    return get_generator_profile(generator_id)
+
+
+def delete_generator_profile(generator_id):
+    with connect() as conn:
+        conn.execute("DELETE FROM generator_profiles WHERE generator_id=?", (generator_id,))
+        conn.execute(
+            "INSERT INTO events(generator_id,level,message,created_at) VALUES (?,?,?,?)",
+            (
+                generator_id,
+                "INFO",
+                "Perfil Modbus importado removido; voltou ao perfil padrão do modelo",
+                int(time.time()),
+            ),
+        )
+
+
 def update_telemetry(
     generator_id,
     *,
@@ -302,26 +398,70 @@ def recent_events(limit=50):
     return [dict(r) for r in rows]
 
 
+BENIGN_PROFILE_ERRORS = (
+    "perfil sem pontos modbus configurados",
+    "aguardando mapa",
+    "mapa modbus ainda não importado",
+    "mapa modbus ainda nao importado",
+)
+
+
+def _has_real_error(error):
+    text = str(error or "").strip().lower()
+    if not text:
+        return False
+    return not any(marker in text for marker in BENIGN_PROFILE_ERRORS)
+
+
+def _generator_status(g, now=None):
+    now = int(time.time()) if now is None else now
+    fresh = bool(g.get("last_seen")) and now - int(g["last_seen"]) < 15
+    if not g.get("connected") or not fresh:
+        return "offline"
+    if g.get("poll_ok"):
+        return "online"
+    if _has_real_error(g.get("last_error")):
+        return "fault"
+    return "connected"
+
+
 def dashboard():
     gens = list_generators()
-    now = int(time.time())
     online = 0
+    connected = 0
     operating = 0
     alarm = 0
+    offline = 0
+
     for g in gens:
-        fresh = g["last_seen"] and now - g["last_seen"] < 15
-        if g["connected"] and fresh:
+        status = g.get("status") or _generator_status(g)
+        if status == "online":
             online += 1
-        vals = g["values"]
-        text = " ".join(str(v).lower() for v in vals.values())
-        if "running" in text or "operating" in text or "1800" in text:
-            operating += 1
-        if "alarm" in text or g["last_error"]:
+        elif status == "connected":
+            connected += 1
+        elif status == "fault":
             alarm += 1
+        else:
+            offline += 1
+
+        vals = g["values"]
+        rpm = vals.get("rpm")
+        if isinstance(rpm, (int, float)) and rpm > 300:
+            operating += 1
+        else:
+            text = " ".join(str(v).lower() for v in vals.values())
+            if "running" in text or "operating" in text:
+                operating += 1
+
+        values_text = " ".join(str(v).lower() for v in vals.values())
+        if "alarm" in values_text and status != "fault":
+            alarm += 1
+
     return {
         "total": len(gens),
         "online": online,
-        "offline": len(gens) - online,
+        "connected": connected,
+        "offline": offline,
         "operating": operating,
         "alarm": alarm,
     }
@@ -338,4 +478,6 @@ def _row_generator(r):
     d["enabled"] = bool(d["enabled"])
     d["connected"] = bool(d["connected"])
     d["poll_ok"] = bool(d["poll_ok"])
+    d["profile_imported"] = bool(d.get("profile_imported"))
+    d["status"] = _generator_status(d)
     return d
