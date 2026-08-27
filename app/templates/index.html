@@ -11,10 +11,9 @@
   <nav>
     <button class="nav active" data-view="dashboard">Dashboard</button>
     <button class="nav" data-view="generators">Geradores</button>
-    <button class="nav" data-view="controllers">Controladoras</button>
     <button class="nav" data-view="events">Eventos</button>
   </nav>
-  <div class="engine">Rapid SCADA + GenMon<br><small>motor industrial</small></div>
+  <div class="engine">RC Geradores SCADA<br><small>monitoramento industrial</small></div>
 </aside>
 <main>
   <header><div><h1 id="title">Dashboard</h1><p>Monitoramento central de grupos geradores</p></div><button id="addBtn" class="primary">+ Adicionar gerador</button></header>
@@ -22,8 +21,7 @@
   <section id="dashboard" class="view">
     <div class="kpis">
       <div class="kpi"><span>Total</span><strong id="kTotal">0</strong></div>
-      <div class="kpi ok"><span>Online</span><strong id="kOnline">0</strong><small>telemetria OK</small></div>
-      <div class="kpi conn"><span>Conectado</span><strong id="kConnected">0</strong><small>sem perfil/dados</small></div>
+      <div class="kpi ok"><span>Online</span><strong id="kOnline">0</strong></div>
       <div class="kpi"><span>Operando</span><strong id="kOperating">0</strong></div>
       <div class="kpi warn"><span>Alarme/Falha</span><strong id="kAlarm">0</strong></div>
       <div class="kpi off"><span>Offline</span><strong id="kOffline">0</strong></div>
@@ -33,17 +31,8 @@
 
   <section id="generators" class="view hidden">
     <div class="panel"><div class="panel-title">Cadastro e comunicação</div>
-      <table><thead><tr><th>Código</th><th>Cliente / Local</th><th>Controladora</th><th>Porta / Unit</th><th>Perfil</th><th>Status</th><th></th></tr></thead>
+      <table><thead><tr><th>Código</th><th>Cliente / Local</th><th>Controladora</th><th>Porta / Unit</th><th>Status</th><th></th></tr></thead>
       <tbody id="generatorRows"></tbody></table>
-    </div>
-  </section>
-
-  <section id="controllers" class="view hidden">
-    <div class="panel">
-      <div class="panel-title">Biblioteca de controladoras</div>
-      <p class="note">O modelo seleciona automaticamente a estratégia de perfil. Mapas configuráveis são importados do InteliConfig/LiteEdit e ficam vinculados ao gerador.</p>
-      <div class="toolbar"><select id="libraryBrand"><option value="COMAP">ComAp</option><option value="DSE">DSE</option></select></div>
-      <div class="table-scroll"><table><thead><tr><th>Família</th><th>Modelo</th><th>Perfil</th><th>Estratégia</th></tr></thead><tbody id="controllerRows"></tbody></table></div>
     </div>
   </section>
 
@@ -66,16 +55,6 @@
     <label>Local<input name="site" placeholder="Casa de máquinas"></label>
     <label>Fabricante<select name="controller_type" id="controllerType"><option value="COMAP">ComAp</option><option value="DSE">DSE</option></select></label>
     <label>Modelo<select name="controller_model" id="controllerModel" required><option value="">Carregando modelos...</option></select></label>
-    <div class="model-hint">
-      <div id="modelProfileBadge"></div>
-      <small id="modelHint" class="note">Selecione o modelo para carregar o perfil de comunicação correto.</small>
-    </div>
-    <div id="profileImportBox" class="profile-import hidden">
-      <label>Mapa da controladora (opcional no cadastro)
-        <input id="profileFile" name="profile_file" type="file" accept=".csv,.txt,.tsv,.json">
-      </label>
-      <small class="note">Use exportação do InteliConfig/LiteEdit. O RC SCADA habilita automaticamente apenas telemetria de leitura reconhecida; demais pontos ficam para revisão.</small>
-    </div>
     <label>Transporte<select name="transport"><option value="modbus_tcp">Modbus TCP</option><option value="rtu_over_tcp">Modbus RTU sobre TCP</option></select></label>
     <label>Modbus ID<input name="modbus_unit" type="number" min="1" max="247" value="1"></label>
     <label>Porta TCP<input name="listen_port" type="number" placeholder="Automática: 15001+"></label>
