@@ -1,0 +1,27 @@
+<?xml version="1.0" encoding="utf-8"?>
+<DeviceTemplate>
+  <Options>
+    <ZeroAddr>true</ZeroAddr>
+    <DecAddr>true</DecAddr>
+    <DefByteOrder2 />
+    <DefByteOrder4 />
+    <DefByteOrder8 />
+  </Options>
+  <ElemGroups>
+    <ElemGroup active="true" dataBlock="HoldingRegisters" address="1000" name="Motor">
+      <Elem type="ushort" readOnly="true" isBitMask="false" tagCode="rpm" name="RPM" />
+    </ElemGroup>
+    <ElemGroup active="true" dataBlock="HoldingRegisters" address="1036" name="Tensoes">
+      <Elem type="ushort" readOnly="true" isBitMask="false" tagCode="voltage_l1" name="Tensao L1-N" />
+      <Elem type="ushort" readOnly="true" isBitMask="false" tagCode="voltage_l2" name="Tensao L2-N" />
+      <Elem type="ushort" readOnly="true" isBitMask="false" tagCode="voltage_l3" name="Tensao L3-N" />
+      <Elem type="ushort" readOnly="true" isBitMask="false" tagCode="voltage_l1_l2" name="Tensao L1-L2" />
+      <Elem type="ushort" readOnly="true" isBitMask="false" tagCode="voltage_l2_l3" name="Tensao L2-L3" />
+      <Elem type="ushort" readOnly="true" isBitMask="false" tagCode="voltage_l3_l1" name="Tensao L3-L1" />
+    </ElemGroup>
+    <ElemGroup active="true" dataBlock="HoldingRegisters" address="1045" name="Frequencia">
+      <Elem type="ushort" readOnly="true" isBitMask="false" tagCode="frequency_raw" name="Frequencia x100" />
+    </ElemGroup>
+  </ElemGroups>
+  <Cmds />
+</DeviceTemplate>
