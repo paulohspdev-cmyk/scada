@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="utf-8"?>
+<DeviceTemplate>
+  <Options>
+    <ZeroAddr>true</ZeroAddr>
+    <DecAddr>true</DecAddr>
+    <DefByteOrder2 />
+    <DefByteOrder4 />
+    <DefByteOrder8 />
+  </Options>
+  <ElemGroups>
+    <ElemGroup active="true" dataBlock="HoldingRegisters" address="57" name="Probe">
+      <Elem type="short" readOnly="true" isBitMask="false" tagCode="battery_voltage_raw" name="Battery voltage x10" />
+    </ElemGroup>
+  </ElemGroups>
+  <Cmds />
+</DeviceTemplate>
