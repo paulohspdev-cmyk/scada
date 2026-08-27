@@ -2,6 +2,7 @@ import os
 import sqlite3
 from flask import Flask, jsonify, render_template, request
 from . import db
+from .controller_catalog import list_controller_models
 from .profiles import load_points
 
 app = Flask(__name__)
@@ -16,6 +17,12 @@ def index():
 @app.get("/api/health")
 def health():
     return {"ok": True, "service": "rc-scada-web"}
+
+
+@app.get("/api/controller-models")
+def api_controller_models():
+    controller_type = request.args.get("type")
+    return jsonify(list_controller_models(controller_type))
 
 
 @app.get("/api/dashboard")
