@@ -2,7 +2,8 @@ import json
 import os
 from pathlib import Path
 
-from .controller_catalog import profile_key_for_model
+from . import db
+from .controller_catalog import find_controller_model, profile_key_for_model
 
 GENMON_ROOT = Path(os.environ.get("GENMON_ROOT", "/opt/rc-scada/vendor/genmon"))
 PROFILE_FILES = {
@@ -11,25 +12,16 @@ PROFILE_FILES = {
 }
 
 # Perfil inicial da ComAp InteliGen 200 validado em campo via Modbus TCP.
-# Mantemos somente pontos de alta confiança por enquanto. Outros pontos serão
-# adicionados conforme forem confirmados contra o display/configuração da IG200.
 IG200_POINTS = [
-    {"key": "rpm", "label": "RPM", "address": 1000, "count": 1, "scale": 1.0, "comment": "Validado em campo: ~1800 rpm"},
-    {"key": "voltage_l1", "label": "Generator Voltage L1-N", "address": 1036, "count": 1, "scale": 1.0, "comment": "Validado em campo"},
-    {"key": "voltage_l2", "label": "Generator Voltage L2-N", "address": 1037, "count": 1, "scale": 1.0, "comment": "Validado em campo"},
-    {"key": "voltage_l3", "label": "Generator Voltage L3-N", "address": 1038, "count": 1, "scale": 1.0, "comment": "Validado em campo"},
-    {"key": "voltage_l1_l2", "label": "Generator Voltage L1-L2", "address": 1039, "count": 1, "scale": 1.0, "comment": "Validado em campo"},
-    {"key": "voltage_l2_l3", "label": "Generator Voltage L2-L3", "address": 1040, "count": 1, "scale": 1.0, "comment": "Validado em campo"},
-    {"key": "voltage_l3_l1", "label": "Generator Voltage L3-L1", "address": 1041, "count": 1, "scale": 1.0, "comment": "Validado em campo"},
-    {"key": "frequency", "label": "Generator Frequency", "address": 1045, "count": 1, "scale": 0.01, "comment": "Validado em campo: valor bruto 6003 = 60.03 Hz"},
+    {"key": "rpm", "label": "RPM", "address": 1000, "count": 1, "function": 3, "datatype": "uint16", "scale": 1.0, "comment": "Validado em campo: ~1800 rpm"},
+    {"key": "voltage_l1", "label": "Generator Voltage L1-N", "address": 1036, "count": 1, "function": 3, "datatype": "uint16", "scale": 1.0, "comment": "Validado em campo"},
+    {"key": "voltage_l2", "label": "Generator Voltage L2-N", "address": 1037, "count": 1, "function": 3, "datatype": "uint16", "scale": 1.0, "comment": "Validado em campo"},
+    {"key": "voltage_l3", "label": "Generator Voltage L3-N", "address": 1038, "count": 1, "function": 3, "datatype": "uint16", "scale": 1.0, "comment": "Validado em campo"},
+    {"key": "voltage_l1_l2", "label": "Generator Voltage L1-L2", "address": 1039, "count": 1, "function": 3, "datatype": "uint16", "scale": 1.0, "comment": "Validado em campo"},
+    {"key": "voltage_l2_l3", "label": "Generator Voltage L2-L3", "address": 1040, "count": 1, "function": 3, "datatype": "uint16", "scale": 1.0, "comment": "Validado em campo"},
+    {"key": "voltage_l3_l1", "label": "Generator Voltage L3-L1", "address": 1041, "count": 1, "function": 3, "datatype": "uint16", "scale": 1.0, "comment": "Validado em campo"},
+    {"key": "frequency", "label": "Generator Frequency", "address": 1045, "count": 1, "function": 3, "datatype": "uint16", "scale": 0.01, "comment": "Validado em campo: valor bruto 6003 = 60.03 Hz"},
 ]
-
-# Perfis ainda não validados ficam deliberadamente vazios. A seleção do modelo
-# já escolhe o driver correto, mas o gateway só começa a consultar registradores
-# quando houver mapa oficial/exportado e validado para aquele modelo/aplicação.
-ICNT_POINTS = []
-DYNAMIC_COMAP_POINTS = []
-LEGACY_COMAP_POINTS = []
 
 WANTED = {
     "COMAP": {
@@ -84,20 +76,7 @@ def _scale(comment):
     return 1.0
 
 
-def load_points(controller_type, controller_model=None):
-    ctype = controller_type.upper()
-    profile_key = profile_key_for_model(ctype, controller_model)
-
-    if ctype == "COMAP":
-        if profile_key == "ig200":
-            return [dict(p) for p in IG200_POINTS]
-        if profile_key == "icnt_nt":
-            return [dict(p) for p in ICNT_POINTS]
-        if profile_key == "dynamic_export":
-            return [dict(p) for p in DYNAMIC_COMAP_POINTS]
-        if profile_key in ("legacy_nt", "legacy_export"):
-            return [dict(p) for p in LEGACY_COMAP_POINTS]
-
+def _genmon_points(ctype):
     rel = PROFILE_FILES.get(ctype)
     if not rel:
         raise ValueError(f"Controladora não suportada: {ctype}")
@@ -122,9 +101,140 @@ def load_points(controller_type, controller_model=None):
                 "label": text,
                 "address": int(addr, 16),
                 "count": count,
+                "function": 3,
+                "datatype": "uint16" if count == 1 else "uint32",
                 "scale": _scale(item.get("comment", "")),
                 "comment": item.get("comment", ""),
+                "enabled": True,
             }
         )
-
     return points
+
+
+def _imported_points(generator_id):
+    if not generator_id:
+        return []
+    profile = db.get_generator_profile(generator_id)
+    if not profile:
+        return []
+    return [
+        dict(p)
+        for p in profile.get("points", [])
+        if p.get("enabled", True)
+        and int(p.get("function", 3)) in (3, 4)
+        and int(p.get("count", 1)) >= 1
+    ]
+
+
+def load_points(controller_type, controller_model=None, generator_id=None):
+    """Carrega o perfil ativo.
+
+    Aceita tanto os argumentos antigos (tipo, modelo, id) quanto um dicionário
+    completo de gerador. Um perfil importado por gerador sempre tem prioridade.
+    """
+    if isinstance(controller_type, dict):
+        g = controller_type
+        ctype = str(g.get("controller_type", "")).upper()
+        controller_model = g.get("controller_model")
+        generator_id = g.get("id")
+    else:
+        ctype = str(controller_type or "").upper()
+
+    imported = _imported_points(generator_id)
+    if imported:
+        return imported
+
+    profile_key = profile_key_for_model(ctype, controller_model)
+
+    if ctype == "COMAP":
+        if profile_key == "ig200":
+            return [dict(p, enabled=True) for p in IG200_POINTS]
+        # Demais ComAp só entram em polling depois de mapa oficial/exportado
+        # importado. Isso evita aplicar um mapa de outra aplicação/firmware.
+        return []
+
+    if ctype == "DSE":
+        return _genmon_points(ctype)
+
+    raise ValueError(f"Controladora não suportada: {ctype}")
+
+
+def profile_info(generator):
+    """Resumo de perfil para API/UI, sem iniciar qualquer escrita Modbus."""
+    ctype = str(generator.get("controller_type", "")).upper()
+    model = generator.get("controller_model", "")
+    gid = generator.get("id")
+    catalog = find_controller_model(ctype, model) or {
+        "model": model,
+        "profile_key": None,
+        "map_mode": "unknown",
+        "profile_status": "unknown",
+        "profile_label": "SEM PERFIL",
+        "requires_import": True,
+        "hint": "Modelo sem perfil catalogado.",
+    }
+
+    imported = db.get_generator_profile(gid) if gid else None
+    if imported:
+        all_points = imported.get("points", [])
+        active_points = [
+            p for p in all_points
+            if p.get("enabled", True) and int(p.get("function", 3)) in (3, 4)
+        ]
+        return {
+            "state": "active_imported" if active_points else "imported_no_active_points",
+            "label": "MAPA IMPORTADO" if active_points else "MAPA SEM PONTOS ATIVOS",
+            "active": bool(active_points),
+            "requires_import": not bool(active_points),
+            "source_name": imported.get("source_name", ""),
+            "source_type": imported.get("source_type", "import"),
+            "updated_at": imported.get("imported_at"),
+            "points": len(all_points),
+            "active_points": len(active_points),
+            "catalog": catalog,
+        }
+
+    if catalog.get("profile_key") == "ig200":
+        return {
+            "state": "active_builtin",
+            "label": "PERFIL RC VALIDADO",
+            "active": True,
+            "requires_import": False,
+            "source_name": "RC Geradores / validação de campo",
+            "source_type": "builtin",
+            "updated_at": None,
+            "points": len(IG200_POINTS),
+            "active_points": len(IG200_POINTS),
+            "catalog": catalog,
+        }
+
+    if ctype == "DSE":
+        try:
+            count = len(_genmon_points(ctype))
+        except Exception:
+            count = 0
+        return {
+            "state": "reference",
+            "label": "PERFIL DE REFERÊNCIA",
+            "active": count > 0,
+            "requires_import": False,
+            "source_name": "GenMon",
+            "source_type": "reference",
+            "updated_at": None,
+            "points": count,
+            "active_points": count,
+            "catalog": catalog,
+        }
+
+    return {
+        "state": "awaiting_import",
+        "label": catalog.get("profile_label", "IMPORTAR MAPA"),
+        "active": False,
+        "requires_import": True,
+        "source_name": "",
+        "source_type": "",
+        "updated_at": None,
+        "points": 0,
+        "active_points": 0,
+        "catalog": catalog,
+    }
