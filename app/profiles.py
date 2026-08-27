@@ -22,6 +22,13 @@ IG200_POINTS = [
     {"key": "frequency", "label": "Generator Frequency", "address": 1045, "count": 1, "scale": 0.01, "comment": "Validado em campo: valor bruto 6003 = 60.03 Hz"},
 ]
 
+# A InteliCompact NT do site está na mesma rede RS485 da IG200, mas seu mapa
+# ainda não foi validado. Não usamos o perfil ComAp genérico aqui porque pontos
+# incorretos podem gerar timeouts/respostas tardias e atrapalhar os outros Unit
+# IDs da mesma conexão TCP. Ela fica cadastrada e online, porém sem polling de
+# registradores até concluirmos o mapeamento read-only.
+ICNT_POINTS = []
+
 WANTED = {
     "COMAP": {
         "Battery Voltage": "battery_voltage",
@@ -79,8 +86,18 @@ def load_points(controller_type, controller_model=None):
     ctype = controller_type.upper()
     model = (controller_model or "").upper().replace("-", " ")
 
-    if ctype == "COMAP" and ("INTELIGEN 200" in model or "IG200" in model or "IG 200" in model):
+    if ctype == "COMAP" and (
+        "INTELIGEN 200" in model or "IG200" in model or "IG 200" in model
+    ):
         return [dict(p) for p in IG200_POINTS]
+
+    if ctype == "COMAP" and (
+        "INTELICOMPACT NT" in model
+        or "INTELICOMPACT" in model
+        or "ICNT" in model
+        or "IC NT" in model
+    ):
+        return [dict(p) for p in ICNT_POINTS]
 
     rel = PROFILE_FILES.get(ctype)
     if not rel:
