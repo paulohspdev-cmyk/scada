@@ -22,11 +22,10 @@ A instalação atual prepara:
 - RC Reverse TCP Bridge;
 - painel RC Geradores;
 - Nginx;
-- banco SQLite do produto;
-- cliente `ScadaClient` usado pelo painel para ler o Rapid SCADA Server;
-- GenMon como referência externa.
+- banco SQLite de cadastro/eventos do produto;
+- cliente `ScadaClient` usado pelo painel para ler o Rapid SCADA Server.
 
-O instalador **não ativa o antigo `rc-scada-gateway`**. Esse serviço pertence à arquitetura anterior e permanece no Git apenas até a limpeza final.
+Não instala nem ativa o antigo `rc-scada-gateway`. GenMon também não é dependência de produção e não é clonado pelo instalador.
 
 ## Fluxo de comunicação
 
@@ -45,9 +44,16 @@ modem -> :15001 -> bridge -> 127.0.0.1:25001 -> Rapid SCADA
 
 ## Cadastro e provisionamento
 
-O cadastro do gerador no painel define porta e Unit ID. A criação de Device Templates e canais do Rapid SCADA continua sendo feita por automação específica do modelo enquanto o provisionamento genérico não estiver concluído.
+O cadastro do gerador no painel define porta e Unit ID.
 
-Não trate um modelo como compatível apenas porque a conexão TCP abriu. O mapa Modbus deve ser validado antes de criar canais definitivos.
+A compatibilidade técnica não é determinada pelo cadastro. Para cada modelo é necessário:
+
+1. validar comunicação somente leitura;
+2. criar/validar o Device Template em `rapid/templates/`;
+3. criar/vincular canais no Rapid SCADA Server;
+4. adicionar o binding do painel em `rapid/bindings.json`.
+
+Não trate um modelo como compatível apenas porque a conexão TCP abriu.
 
 ## Diagnóstico
 
@@ -79,7 +85,7 @@ O caminho normal do Rapid SCADA é somente leitura. Controle remoto é instalado
 sudo /opt/rc-scada/scripts/rapid_control_install.sh
 ```
 
-O comando disponível para o modelo já validado é:
+Comandos do modelo já validado:
 
 ```bash
 sudo /opt/rc-scada/bin/rc-generator start --device 200 --confirm
@@ -93,17 +99,34 @@ A habilitação do controle é propositalmente opt-in e não deve ser generaliza
 ```bash
 cd /opt/rc-scada
 sudo git pull --ff-only
-sudo systemctl restart rc-scada-web
+sudo systemctl restart rc-scada-web rc-scada-rapid-bridge
 ```
 
 Não use `git reset --hard` em uma VM com alterações locais sem antes revisar/stashar essas mudanças.
 
+## Limpeza de instalações antigas
+
+Se a VM foi criada antes da remoção do gateway legado:
+
+```bash
+sudo systemctl disable --now rc-scada-gateway.service 2>/dev/null || true
+sudo rm -f /etc/systemd/system/rc-scada-gateway.service
+sudo systemctl daemon-reload
+```
+
+Se existir `/opt/rc-scada/vendor/genmon` de uma instalação antiga, ele pode ser removido depois de atualizar para o `main` atual, porque o runtime não o utiliza mais:
+
+```bash
+sudo rm -rf /opt/rc-scada/vendor/genmon
+```
+
 ## Segurança e recuperação
 
-Antes desta reorganização foi criado o branch:
+Branches de recuperação criados durante a reorganização:
 
 ```text
 checkpoint/pre-cleanup-rapid-20260827
+checkpoint/pre-profile-cleanup-20260827
 ```
 
-Ele preserva o estado anterior à limpeza documental/estrutural. O plano de arquivos a manter e remover está em `docs/CLEANUP_PLAN.md`.
+As decisões de limpeza estão documentadas em `docs/CLEANUP_PLAN.md` e `docs/PROFILE_CLEANUP_DECISION.md`.
