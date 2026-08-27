@@ -1,16 +1,22 @@
-# Plano de limpeza do repositório
+# Limpeza do repositório
 
-Este documento separa o que pertence à arquitetura atual do que é legado de migração.
+A arquitetura oficial do RC Geradores é:
 
-Antes desta reorganização foi criado o branch de segurança:
+```text
+modem TCP Client
+  -> RC Reverse Bridge
+  -> Rapid SCADA Communicator
+  -> Rapid SCADA Server
+  -> painel RC
+```
+
+Antes da limpeza foi criado o branch de segurança:
 
 ```text
 checkpoint/pre-cleanup-rapid-20260827
 ```
 
-Nenhum arquivo listado como histórico deve ser removido antes de concluir a validação da InteliCompact NT e revisar se existe dependência ativa na VM.
-
-## Manter: núcleo definitivo
+## Núcleo definitivo
 
 ```text
 app/__init__.py
@@ -44,27 +50,9 @@ README.md
 docs/
 ```
 
-Motivo: esses componentes formam a arquitetura atual:
+## Segunda limpeza concluída
 
-```text
-modem -> reverse bridge -> Rapid SCADA Communicator -> Rapid SCADA Server -> painel RC
-```
-
-## Manter temporariamente: InteliCompact NT em validação
-
-```text
-rapid/templates/DrvModbus_RC_ICNT_PROBE.xml
-rapid/templates/DrvModbus_RC_ICNT.xml
-scripts/rapid_stage4_icnt.sh
-```
-
-Depois da validação:
-
-- `DrvModbus_RC_ICNT.xml` permanece somente se o mapa for confirmado em campo;
-- `DrvModbus_RC_ICNT_PROBE.xml` pode ser removido;
-- `rapid_stage4_icnt.sh` pode ser removido ou substituído por provisionamento genérico.
-
-## Legado: remover na segunda limpeza
+Os componentes abaixo foram removidos do `main` porque pertenciam ao polling Python antigo ou eram scripts usados somente durante a migração para o Rapid SCADA:
 
 ```text
 app/gateway.py
@@ -78,13 +66,21 @@ scripts/rapid_stage2_rollback.sh
 scripts/rapid_stage3_panel.sh
 ```
 
-Motivo:
+O histórico continua preservado no Git e no branch de checkpoint.
 
-- `app/gateway.py` pertence ao período em que Python fazia polling Modbus;
-- `rc-scada-gateway.service` inicia esse motor antigo;
-- etapas 1, 2 e 3 foram scripts de migração para chegar ao Rapid SCADA e não fazem parte do runtime normal.
+## InteliCompact NT: manter temporariamente
 
-O instalador atual já não habilita o gateway legado.
+```text
+rapid/templates/DrvModbus_RC_ICNT_PROBE.xml
+rapid/templates/DrvModbus_RC_ICNT.xml
+scripts/rapid_stage4_icnt.sh
+```
+
+Depois da validação de campo:
+
+- `DrvModbus_RC_ICNT.xml` permanece somente se o mapa for confirmado;
+- `DrvModbus_RC_ICNT_PROBE.xml` é removido;
+- `rapid_stage4_icnt.sh` é removido ou substituído por provisionamento genérico.
 
 ## Revisar antes de remover
 
@@ -94,27 +90,24 @@ app/profile_importer.py
 docs/COMAP_PROFILES.md
 ```
 
-Esses arquivos ainda são referenciados por partes do backend e representam a camada antiga de perfil/importação no Python. A remoção correta exige primeiro simplificar `app/web.py` e o cadastro para que os templates/bindings do Rapid SCADA sejam a fonte técnica dos pontos.
+Esses arquivos ainda são usados por partes do backend. A remoção exige primeiro retirar do painel/backend a camada antiga de perfil/importação e deixar templates/bindings do Rapid SCADA como fonte técnica dos pontos.
 
 ## GenMon
 
-O GenMon não é incorporado ao Git deste repositório; o instalador o clona em `vendor/genmon`.
+GenMon permanece fora deste Git, em `vendor/genmon`, como referência externa de perfis e nomenclatura. Ele não atua como mestre Modbus concorrente.
 
-Decisão atual: manter como referência externa para perfis, nomenclatura e pesquisa, sem executar polling concorrente com o Rapid SCADA.
+## Limpeza da VM
 
-Em uma revisão futura pode ser decidido remover essa dependência se os templates homologados do Rapid SCADA cobrirem todo o catálogo necessário.
+Após atualizar a VM para este `main`, o unit file legado pode continuar em `/etc/systemd/system` por ter sido instalado anteriormente. Remova somente o serviço legado com:
 
-## Regras para a próxima limpeza
+```bash
+sudo systemctl disable --now rc-scada-gateway.service 2>/dev/null || true
+sudo rm -f /etc/systemd/system/rc-scada-gateway.service
+sudo systemctl daemon-reload
+sudo systemctl reset-failed
+```
 
-Antes de deletar arquivos legados:
-
-1. confirmar `rc-scada-gateway` inativo e desabilitado na VM;
-2. confirmar `rc-scada-rapid-bridge`, `scadacomm6`, `scadaserver6` e `rc-scada-web` ativos;
-3. confirmar painel lendo `telemetry_source=rapid_scada` para a IG200;
-4. confirmar START e STOP da IG200 pelo caminho restrito;
-5. concluir ou abortar formalmente a validação da InteliCompact NT;
-6. procurar referências aos arquivos candidatos a remoção;
-7. só então executar deletes em um commit dedicado.
+Isso não afeta `rc-scada-rapid-bridge`, Rapid SCADA ou o painel.
 
 ## Estrutura alvo
 
