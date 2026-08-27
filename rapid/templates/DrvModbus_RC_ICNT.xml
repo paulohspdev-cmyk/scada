@@ -1,0 +1,31 @@
+<?xml version="1.0" encoding="utf-8"?>
+<DeviceTemplate>
+  <Options>
+    <ZeroAddr>true</ZeroAddr>
+    <DecAddr>true</DecAddr>
+    <DefByteOrder2 />
+    <DefByteOrder4 />
+    <DefByteOrder8 />
+  </Options>
+  <ElemGroups>
+    <ElemGroup active="true" dataBlock="HoldingRegisters" address="57" name="Bateria">
+      <Elem type="short" readOnly="true" isBitMask="false" tagCode="battery_voltage_raw" name="Tensao bateria x10" />
+    </ElemGroup>
+    <ElemGroup active="true" dataBlock="HoldingRegisters" address="60" name="Oleo">
+      <Elem type="short" readOnly="true" isBitMask="false" tagCode="oil_pressure_raw" name="Pressao oleo x10" />
+    </ElemGroup>
+    <ElemGroup active="true" dataBlock="HoldingRegisters" address="61" name="Temperatura">
+      <Elem type="short" readOnly="true" isBitMask="false" tagCode="coolant_temperature" name="Temperatura motor" />
+    </ElemGroup>
+    <ElemGroup active="true" dataBlock="HoldingRegisters" address="62" name="Combustivel">
+      <Elem type="ushort" readOnly="true" isBitMask="false" tagCode="fuel_level" name="Nivel combustivel" />
+    </ElemGroup>
+    <ElemGroup active="true" dataBlock="HoldingRegisters" address="68" name="Entradas">
+      <Elem type="ushort" readOnly="true" isBitMask="false" tagCode="binary_inputs_raw" name="Entradas digitais" />
+    </ElemGroup>
+    <ElemGroup active="true" dataBlock="HoldingRegisters" address="79" name="Modo">
+      <Elem type="ushort" readOnly="true" isBitMask="false" tagCode="controller_mode_raw" name="Modo controladora" />
+    </ElemGroup>
+  </ElemGroups>
+  <Cmds />
+</DeviceTemplate>
