@@ -64,26 +64,61 @@ def tcp_request(tid, unit, address, count):
 
 
 async def tcp_response(reader, tid, unit, count):
-    h = await asyncio.wait_for(reader.readexactly(7), 3)
-    rt, proto, length, ru = struct.unpack(">HHHB", h)
-    if rt != tid or proto != 0 or ru != unit:
-        raise ValueError("MBAP inválido")
+    """Read a complete MBAP frame and ignore stale replies from old requests.
 
-    body = await asyncio.wait_for(reader.readexactly(length - 1), 3)
-    if body[0] & 0x80:
-        raise ValueError(f"Exceção Modbus {body[1]}")
-    if body[0] != 3:
-        raise ValueError("Função Modbus inesperada")
+    On a shared serial bus a slow Unit ID can answer after its request timed out.
+    The old implementation validated TID/Unit immediately after the 7-byte
+    header and raised before consuming the body, leaving the stream permanently
+    out of alignment. Here every frame is consumed completely first; stale
+    TID/Unit frames are discarded until the expected response arrives.
+    """
+    loop = asyncio.get_running_loop()
+    deadline = loop.time() + 3.0
 
-    byte_count = body[1]
-    payload = body[2 : 2 + byte_count]
-    if byte_count != 2 * count:
-        raise ValueError(f"resposta TCP com tamanho inesperado {byte_count}")
+    while True:
+        remaining = deadline - loop.time()
+        if remaining <= 0:
+            raise asyncio.TimeoutError()
 
-    return [
-        struct.unpack(">H", payload[i : i + 2])[0]
-        for i in range(0, len(payload), 2)
-    ]
+        h = await asyncio.wait_for(reader.readexactly(7), remaining)
+        rt, proto, length, ru = struct.unpack(">HHHB", h)
+
+        if proto != 0:
+            raise ValueError(f"MBAP inválido: protocol={proto}")
+        if length < 2 or length > 260:
+            raise ValueError(f"MBAP inválido: length={length}")
+
+        remaining = deadline - loop.time()
+        if remaining <= 0:
+            raise asyncio.TimeoutError()
+
+        body = await asyncio.wait_for(reader.readexactly(length - 1), remaining)
+
+        # Resposta atrasada de outro request/Unit ID: já consumimos o frame
+        # inteiro, então podemos descartá-lo sem perder sincronismo do socket.
+        if rt != tid or ru != unit:
+            continue
+
+        if not body:
+            raise ValueError("resposta Modbus TCP vazia")
+        if body[0] & 0x80:
+            if len(body) < 2:
+                raise ValueError("exceção Modbus TCP incompleta")
+            raise ValueError(f"Exceção Modbus {body[1]}")
+        if body[0] != 3:
+            raise ValueError(f"Função Modbus inesperada {body[0]}")
+        if len(body) < 2:
+            raise ValueError("resposta Modbus TCP incompleta")
+
+        byte_count = body[1]
+        payload = body[2 : 2 + byte_count]
+        if byte_count != 2 * count or len(payload) != byte_count:
+            raise ValueError(f"resposta TCP com tamanho inesperado {byte_count}")
+
+        return [
+            struct.unpack(">H", payload[i : i + 2])[0]
+            for i in range(0, len(payload), 2)
+        ]
 
 
 def combine(regs):
@@ -98,6 +133,9 @@ async def poll_controller_once(g, reader, writer, tid):
     unit = int(g["modbus_unit"])
     values = {}
     point_errors = []
+
+    if not points:
+        return values, ["perfil sem pontos Modbus configurados"], tid
 
     for p in points:
         try:
