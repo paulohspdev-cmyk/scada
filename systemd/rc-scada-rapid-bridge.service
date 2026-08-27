@@ -13,6 +13,9 @@ ExecStart=/opt/rc-scada/.venv/bin/python -m app.rapid_bridge
 Restart=always
 RestartSec=3
 LimitNOFILE=8192
+RuntimeDirectory=rc-scada
+RuntimeDirectoryMode=0750
+UMask=0007
 
 [Install]
 WantedBy=multi-user.target
