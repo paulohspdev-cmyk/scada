@@ -1,94 +1,53 @@
-"""Catálogo de controladoras e estratégia de perfil Modbus.
+"""Catálogo simples de controladoras disponíveis para cadastro.
 
-A seleção do modelo é separada do mapa de registradores. Perfis de fábrica só
-entram em polling quando foram validados neste projeto. Para controladoras cujo
-mapa é configurável, o RC SCADA importa o CSV/TXT/JSON exportado do
-InteliConfig/LiteEdit e cria um perfil por gerador.
+O catálogo não define mapa Modbus. A integração técnica de cada modelo fica em
+`rapid/templates/` e `rapid/bindings.json`, depois de validação no Rapid SCADA.
 """
 
 
-def _m(
-    family,
-    model,
-    profile_key,
-    map_mode,
-    profile_status,
-    profile_label,
-    hint,
-    aliases=(),
-):
+def _m(family, model, aliases=()):
     return {
         "brand": "COMAP",
         "family": family,
         "model": model,
-        "profile_key": profile_key,
-        "map_mode": map_mode,
-        "profile_status": profile_status,
-        "profile_label": profile_label,
-        "requires_import": profile_status in ("import_required", "guide_required"),
-        "hint": hint,
         "aliases": list(aliases),
     }
 
 
-DYNAMIC = (
-    "Mapa configurável por aplicação. Exporte o mapa do InteliConfig e importe "
-    "no RC SCADA; o arquivo vira o perfil Modbus deste gerador."
-)
-LEGACY = (
-    "Família legada. Importe o mapa exportado pelo LiteEdit/GenConfig ou um mapa "
-    "validado do Communication Guide para este modelo/firmware."
-)
-FIELD = (
-    "Perfil RC validado em campo. O modelo já carrega automaticamente os pontos "
-    "homologados; um mapa importado pode complementar/substituir esse perfil."
-)
-NO_DIRECT = (
-    "A disponibilidade de Modbus depende da versão/interface instalada. O RC "
-    "SCADA mantém o modelo no catálogo, mas exige mapa/integração validada."
-)
-
 COMAP_MODELS = [
-    _m("InteliLite", "InteliLite 4 AMF 25", "dynamic_export", "dynamic_export", "import_required", "IMPORTAR MAPA", DYNAMIC),
-    _m("InteliLite", "InteliLite 4 AMF 20", "dynamic_export", "dynamic_export", "import_required", "IMPORTAR MAPA", DYNAMIC),
-    _m("InteliLite", "InteliLite 4 MRS 16", "dynamic_export", "dynamic_export", "import_required", "IMPORTAR MAPA", DYNAMIC),
-    _m("InteliLite", "InteliLite 4 MRS 11", "dynamic_export", "dynamic_export", "import_required", "IMPORTAR MAPA", DYNAMIC),
-    _m("InteliLite", "InteliLite 4 AMF 9", "dynamic_export", "dynamic_export", "import_required", "IMPORTAR MAPA", DYNAMIC),
-    _m("InteliLite", "InteliNano AMF 5", "no_profile", "interface_dependent", "guide_required", "VALIDAR INTERFACE", NO_DIRECT),
-    _m("InteliLite", "InteliNano MRS 3", "no_profile", "interface_dependent", "guide_required", "VALIDAR INTERFACE", NO_DIRECT),
-
-    _m("InteliLite NT", "InteliLite NT AMF 25", "legacy_nt", "legacy_guide", "guide_required", "MAPA LEGADO", LEGACY, ("IL-NT AMF25",)),
-    _m("InteliLite NT", "InteliLite NT AMF 20", "legacy_nt", "legacy_guide", "guide_required", "MAPA LEGADO", LEGACY, ("IL-NT AMF20",)),
-    _m("InteliLite NT", "InteliLite NT MRS 16", "legacy_nt", "legacy_guide", "guide_required", "MAPA LEGADO", LEGACY, ("IL-NT MRS16",)),
-    _m("InteliLite NT", "InteliLite NT MRS 10", "legacy_nt", "legacy_guide", "guide_required", "MAPA LEGADO", LEGACY),
-    _m("InteliLite NT", "InteliLite NT MRS 3", "legacy_nt", "legacy_guide", "guide_required", "MAPA LEGADO", LEGACY),
-
-    _m("InteliGen", "InteliGen 1000", "dynamic_export", "dynamic_export", "import_required", "IMPORTAR MAPA", DYNAMIC),
-    _m("InteliGen", "InteliGen 1000 SC", "dynamic_export", "dynamic_export", "import_required", "IMPORTAR MAPA", DYNAMIC),
-    _m("InteliGen", "InteliGen 500 G2", "dynamic_export", "dynamic_export", "import_required", "IMPORTAR MAPA", DYNAMIC),
-    _m("InteliGen", "InteliGen4 200", "dynamic_export", "dynamic_export", "import_required", "IMPORTAR MAPA", DYNAMIC, ("InteliGen 4 200", "IG4 200")),
-    _m("InteliGen", "InteliGen 200", "ig200", "field_validated", "validated", "PERFIL RC", FIELD, ("IG200", "IG 200")),
-
-    _m("InteliGen NT", "InteliGen NT", "legacy_export", "legacy_export", "guide_required", "MAPA LEGADO", LEGACY, ("IG-NT",)),
-    _m("InteliCompact NT", "InteliCompact NT MINT", "icnt_nt", "legacy_guide", "guide_required", "MAPA LEGADO", LEGACY, ("IC-NT MINT", "ICNT MINT")),
-    _m("InteliCompact NT", "InteliCompact NT SPtM", "icnt_nt", "legacy_guide", "guide_required", "MAPA LEGADO", LEGACY, ("IC-NT SPTM", "ICNT SPTM")),
-    _m("InteliCompact NT", "InteliCompact NT", "icnt_nt", "legacy_guide", "guide_required", "MAPA LEGADO", LEGACY, ("ICNT", "IC NT")),
-
-    _m("InteliSys", "InteliSys 2000", "dynamic_export", "dynamic_export", "import_required", "IMPORTAR MAPA", DYNAMIC),
-    _m("InteliSys", "InteliSys Gas", "dynamic_export", "dynamic_export", "import_required", "IMPORTAR MAPA", DYNAMIC),
-    _m("InteliSys", "InteliSys NTC BaseBox", "legacy_export", "legacy_export", "guide_required", "MAPA LEGADO", LEGACY),
-
-    _m("InteliATS", "InteliATS2 70", "dynamic_export", "dynamic_export", "import_required", "IMPORTAR MAPA", DYNAMIC),
-    _m("InteliATS", "InteliATS2 50", "dynamic_export", "dynamic_export", "import_required", "IMPORTAR MAPA", DYNAMIC),
-
-    _m("InteliNeo", "InteliNeo 6000", "dynamic_export", "dynamic_export", "import_required", "IMPORTAR MAPA", DYNAMIC),
-    _m("InteliNeo", "InteliNeo 5500", "dynamic_export", "dynamic_export", "import_required", "IMPORTAR MAPA", DYNAMIC),
-    _m("InteliNeo", "InteliNeo 530 BESS", "dynamic_export", "dynamic_export", "import_required", "IMPORTAR MAPA", DYNAMIC),
-
-    _m("InteliDrive", "InteliDrive 700 Marine", "dynamic_export", "dynamic_export", "import_required", "IMPORTAR MAPA", DYNAMIC),
-    _m("InteliDrive", "InteliDrive DCU Marine", "dynamic_export", "dynamic_export", "import_required", "IMPORTAR MAPA", DYNAMIC),
-    _m("InteliDrive", "InteliDrive DCU Industrial", "dynamic_export", "dynamic_export", "import_required", "IMPORTAR MAPA", DYNAMIC),
-    _m("InteliDrive", "InteliDrive Industrial 600", "dynamic_export", "dynamic_export", "import_required", "IMPORTAR MAPA", DYNAMIC),
+    _m("InteliLite", "InteliLite 4 AMF 25"),
+    _m("InteliLite", "InteliLite 4 AMF 20"),
+    _m("InteliLite", "InteliLite 4 MRS 16"),
+    _m("InteliLite", "InteliLite 4 MRS 11"),
+    _m("InteliLite", "InteliLite 4 AMF 9"),
+    _m("InteliLite", "InteliNano AMF 5"),
+    _m("InteliLite", "InteliNano MRS 3"),
+    _m("InteliLite NT", "InteliLite NT AMF 25", ("IL-NT AMF25",)),
+    _m("InteliLite NT", "InteliLite NT AMF 20", ("IL-NT AMF20",)),
+    _m("InteliLite NT", "InteliLite NT MRS 16", ("IL-NT MRS16",)),
+    _m("InteliLite NT", "InteliLite NT MRS 10"),
+    _m("InteliLite NT", "InteliLite NT MRS 3"),
+    _m("InteliGen", "InteliGen 1000"),
+    _m("InteliGen", "InteliGen 1000 SC"),
+    _m("InteliGen", "InteliGen 500 G2"),
+    _m("InteliGen", "InteliGen4 200", ("InteliGen 4 200", "IG4 200")),
+    _m("InteliGen", "InteliGen 200", ("IG200", "IG 200")),
+    _m("InteliGen NT", "InteliGen NT", ("IG-NT",)),
+    _m("InteliCompact NT", "InteliCompact NT MINT", ("IC-NT MINT", "ICNT MINT")),
+    _m("InteliCompact NT", "InteliCompact NT SPtM", ("IC-NT SPTM", "ICNT SPTM")),
+    _m("InteliCompact NT", "InteliCompact NT", ("ICNT", "IC NT")),
+    _m("InteliSys", "InteliSys 2000"),
+    _m("InteliSys", "InteliSys Gas"),
+    _m("InteliSys", "InteliSys NTC BaseBox"),
+    _m("InteliATS", "InteliATS2 70"),
+    _m("InteliATS", "InteliATS2 50"),
+    _m("InteliNeo", "InteliNeo 6000"),
+    _m("InteliNeo", "InteliNeo 5500"),
+    _m("InteliNeo", "InteliNeo 530 BESS"),
+    _m("InteliDrive", "InteliDrive 700 Marine"),
+    _m("InteliDrive", "InteliDrive DCU Marine"),
+    _m("InteliDrive", "InteliDrive DCU Industrial"),
+    _m("InteliDrive", "InteliDrive Industrial 600"),
 ]
 
 DSE_MODELS = [
@@ -96,12 +55,6 @@ DSE_MODELS = [
         "brand": "DSE",
         "family": "Deep Sea Electronics",
         "model": "DSE 7320 MKII",
-        "profile_key": "genmon_dse",
-        "map_mode": "reference_profile",
-        "profile_status": "reference",
-        "profile_label": "REFERÊNCIA",
-        "requires_import": False,
-        "hint": "Perfil GenMon de referência; validar registradores no equipamento real.",
         "aliases": ["7320 MKII"],
     }
 ]
@@ -131,8 +84,3 @@ def find_controller_model(controller_type, model):
         if wanted in {_norm(name) for name in names}:
             return item
     return None
-
-
-def profile_key_for_model(controller_type, model):
-    item = find_controller_model(controller_type, model)
-    return item["profile_key"] if item else None
